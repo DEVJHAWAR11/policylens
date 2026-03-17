@@ -10,7 +10,6 @@ import Chatbot from "./components/Dashboard/Chatbot";
 export default function App() {
   const [isDark, setIsDark] = useState(false);
   const [appState, setAppState] = useState('home');
-  const [uploadedFile, setUploadedFile] = useState(null);
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
@@ -42,9 +41,11 @@ export default function App() {
 
   const toggleTheme = () => setIsDark(!isDark);
 
-  const handleUploadComplete = (file) => {
+  const handleUploadComplete = () => {
+    // UploadModal already completed the upload — just navigate to dashboard.
+    // Previously we stored the file and passed it to Dboard as a prop, which
+    // caused Dboard's mount effect to call processFile() a second time.
     console.log("Upload finished! Routing to Dboard...");
-    setUploadedFile(file);
     navigateTo('dboard');
   };
 
@@ -52,12 +53,10 @@ export default function App() {
   if (appState === 'dboard' || appState === 'dashboard') {
     return (
       <Dboard
-        file={uploadedFile}
         isDark={isDark}
         toggleTheme={toggleTheme}
         userName={userName}
         onLogout={() => {
-          setUploadedFile(null);
           setUserName('');
           navigateTo('home');
         }}
@@ -84,7 +83,7 @@ export default function App() {
         >
           ← Back to Dashboard
         </button>
-        <Chatbot file={uploadedFile} isDark={isDark} />
+        <Chatbot isDark={isDark} />
       </div>
     );
   }
@@ -93,17 +92,14 @@ export default function App() {
   if (appState === 'login') {
     return (
       <Login
-        // Sign In (email+password) → captures name from email → dashboard
         onLoginSuccess={(user) => {
           setUserName(user?.name || '');
           navigateTo('dboard');
         }}
-        // Continue with Google → name comes from Google profile → dashboard
         onGoogleSuccess={(user) => {
           setUserName(user?.name || 'Google User');
           navigateTo('dboard');
         }}
-        // Create free account → name derived from email → upload → dashboard
         onSignupSuccess={(user) => {
           setUserName(user?.name || '');
           navigateTo('upload');
