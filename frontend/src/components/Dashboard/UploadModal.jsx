@@ -234,8 +234,6 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
   const stageRef = useRef(-1);
   useEffect(() => {
     if (status !== 'uploading') return;
-    if (uploadStarted.current) return;   // ← ADD THIS
-    uploadStarted.current = true;        // ← AND THIS
     setPct(5); setStage(0); stageRef.current = 0;
     let pollId;
 
@@ -321,7 +319,6 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
   };
 
   const reset = () => {
-    uploadStarted.current = false;
     setFile(null); setStatus('idle'); setPct(0); setStage(-1); setError('');
   };
   const uploading = status === 'uploading';
