@@ -27,7 +27,7 @@ const getHeaders = (options = {}) => {
 export const fetchApi = async (endpoint, options = {}) => {
   try {
     const url = `${API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-    
+
     // Default fetch options
     const fetchOptions = {
       ...options,
