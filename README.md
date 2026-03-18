@@ -8,9 +8,7 @@ app_port: 7860
 pinned: false
 ---
 
-Here's the full README.md content for you to copy:
 
-```markdown
 # PolicyLens
 
 **PolicyLens** is an AI-powered insurance policy analysis platform. Upload any PDF policy document and IRIS — our RAG-based AI engine — instantly parses, indexes, and lets you query it in plain English. Get structured summaries, ask specific questions, and chat with your policy document.
@@ -355,11 +353,3 @@ Response + Sources
 
 ---
 
-## Team
-
-| Name | Role |
-|------|------|
-| Arpan Singh | Frontend, Backend, Integration |
-| Dev Jhawar | RAG Engine, Embeddings, LLM |
-| Paavan | Frontend, Auth, React Router |
-```
