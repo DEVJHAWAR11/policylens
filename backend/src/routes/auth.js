@@ -35,4 +35,22 @@ router.post('/login', async (req, res) => {
   res.json({ token, user: { id: user.id, email, name: user.name } });
 });
 
+router.post('/google', async (req, res) => {
+  const { email, name } = req.body;
+
+  let { data: user } = await supabase
+    .from('users').select('*').eq('email', email).single();
+
+  if (!user) {
+    // Creating the user if they logged in with Google for the first time
+    const { data: newUser, error } = await supabase
+      .from('users').insert({ email, password_hash: 'google_oauth', name }).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    user = newUser;
+  }
+
+  const token = jwt.sign({ id: user.id, email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: { id: user.id, email, name: user.name } });
+});
+
 export default router;

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, ArrowRight, Sun, Moon, Cpu, Shield, Zap, Lock, X, CheckCircle } from 'lucide-react';
 import { fetchApi } from '../../api';
+import { isPersonalEmailAllowed, PERSONAL_EMAIL_ERROR } from '../../utils/personalEmail';
 
 const FONT_LINK =
   'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap';
@@ -414,6 +415,10 @@ function SignupModal({ dark, T, onClose, onSuccess }) {
     e.preventDefault();
     if (!name.trim()) return triggerError('Please enter your name.');
     if (!email.trim()) return triggerError('Please enter your email.');
+    if (!isPersonalEmailAllowed(email)) {
+      localStorage.removeItem('token');
+      return triggerError(PERSONAL_EMAIL_ERROR);
+    }
     if (password.length < 8) return triggerError('Password must be at least 8 characters.');
     if (password !== confirm) return triggerError('Passwords do not match.');
     setError(''); setLoading(true);
@@ -691,7 +696,7 @@ function SignupModal({ dark, T, onClose, onSuccess }) {
 }
 
 /* ══ LOGIN PAGE ═══════════════════════════════════════════════════════ */
-export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuccess }) {
+export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuccess, forcedError = '' }) {
   const [dark, setDark] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -715,6 +720,12 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
     return () => { document.body.style.overflow = ''; };
   }, [showSignup, showForgot]);
 
+  useEffect(() => {
+    if (forcedError) {
+      setError(forcedError);
+    }
+  }, [forcedError]);
+
   const deriveName = (e) =>
     e.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim() || 'User';
 
@@ -726,6 +737,10 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim()) return triggerError('Please enter your email.');
+    if (!isPersonalEmailAllowed(email)) {
+      localStorage.removeItem('token');
+      return triggerError(PERSONAL_EMAIL_ERROR);
+    }
     if (!password.trim()) return triggerError('Please enter your password.');
     setError(''); setLoading(true);
     try {

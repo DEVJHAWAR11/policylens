@@ -6,11 +6,14 @@ import Login from "./components/Auth/Login";
 import UploadModal from "./components/Dashboard/UploadModal";
 import Dboard from "./components/Dashboard/Dboard";
 import Chatbot from "./components/Dashboard/Chatbot";
+import { supabase } from "./supabaseClient";
+import { isPersonalEmailAllowed, PERSONAL_EMAIL_ERROR } from "./utils/personalEmail";
 
 export default function App() {
   const [isDark, setIsDark] = useState(false);
   const [appState, setAppState] = useState('home');
   const [userName, setUserName] = useState('');
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     console.log("Current App State:", appState);
@@ -30,7 +33,55 @@ export default function App() {
   };
 
   useEffect(() => {
-    window.history.replaceState({ appState: 'home' }, '', '#home');
+    const redirectToLogin = () => {
+      window.history.replaceState({ appState: 'login' }, '', '#login');
+      setAppState('login');
+    };
+
+    const enforcePersonalEmailOnly = async (session) => {
+      const email = session?.user?.email || session?.email || '';
+      if (!email) return false;
+
+      if (!isPersonalEmailAllowed(email)) {
+        await supabase.auth.signOut();
+        localStorage.removeItem('token');
+        setUserName('');
+        setAuthError(PERSONAL_EMAIL_ERROR);
+        redirectToLogin();
+        return true;
+      }
+
+      setAuthError('');
+      return false;
+    };
+
+    const syncSession = async (session) => {
+      const blocked = await enforcePersonalEmailOnly(session);
+      if (blocked || !session?.user?.email) return;
+
+      const nextName =
+        session.user.user_metadata?.full_name ||
+        session.user.user_metadata?.name ||
+        session.user.email.split('@')[0];
+
+      setUserName(nextName || '');
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void syncSession(session);
+    });
+
+    void supabase.auth.getSession().then(({ data }) => syncSession(data.session));
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const initialState = window.location.hash.replace('#', '') || 'home';
+    window.history.replaceState({ appState: initialState }, '', `#${initialState}`);
+    setAppState(initialState);
     const handlePopState = (e) => {
       const state = e.state?.appState || 'home';
       setAppState(state);
@@ -92,19 +143,26 @@ export default function App() {
   if (appState === 'login') {
     return (
       <Login
+        forcedError={authError}
         onLoginSuccess={(user) => {
+          setAuthError('');
           setUserName(user?.name || '');
           navigateTo('dboard');
         }}
         onGoogleSuccess={(user) => {
+          setAuthError('');
           setUserName(user?.name || 'Google User');
           navigateTo('dboard');
         }}
         onSignupSuccess={(user) => {
+          setAuthError('');
           setUserName(user?.name || '');
           navigateTo('upload');
         }}
-        onBack={() => navigateTo('home')}
+        onBack={() => {
+          setAuthError('');
+          navigateTo('home');
+        }}
       />
     );
   }
