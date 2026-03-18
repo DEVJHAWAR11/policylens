@@ -691,9 +691,13 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
     if (!password.trim()) return triggerError('Please enter your password.');
     setError(''); setLoading(true);
     try {
-      // TODO: replace with → const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      await new Promise(r => setTimeout(r, 1400));
-      onLoginSuccess?.({ email, name: deriveName(email) });
+      const data = await fetchApi('/auth/login', {
+        method: 'POST',
+        body: { email, password }
+      });
+      localStorage.setItem('token', data.token);
+      console.log('Login successful:', data);
+      onLoginSuccess?.({ email, name: data.user?.name || deriveName(email) });
     } catch (err) {
       triggerError(err.message || 'Invalid credentials. Please try again.');
     } finally {
@@ -701,21 +705,8 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
     }
   };
 
-  // ── backend's real Google/login via fetchApi ──
   const handleGoogle = async () => {
-    try {
-      const data = await fetchApi('/auth/login', {
-        method: 'POST',
-        body: { email, password }
-      });
-      localStorage.setItem('token', data.token);
-      console.log('Login successful:', data);
-      onLoginSuccess?.({ email });
-    } catch (err) {
-      triggerError(err.message || 'Invalid credentials. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    triggerError('Google login is not implemented yet.');
   };
 
   const f     = { fontFamily:"'DM Sans',sans-serif" };
