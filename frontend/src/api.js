@@ -1,6 +1,9 @@
 // src/api.js
 
-const API_URL = "http://localhost:4000/api";
+const configuredApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const defaultApiUrl = isLocalhost ? 'http://localhost:4000/api' : '/api';
+const API_URL = (configuredApiUrl || defaultApiUrl).replace(/\/$/, '');
 
 const getHeaders = (options = {}) => {
   const headers = {
