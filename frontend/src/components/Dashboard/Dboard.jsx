@@ -151,8 +151,8 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const [activeTab,       setActiveTab]      = useState('home');
   const [history,         setHistory]        = useState([]);
   const [activeAnalysis,  setActiveAnalysis] = useState(null);
-  const [activePolicyId,  setActivePolicyId] = useState('default');  // FIX 2
-  const [loadingPolicyId, setLoadingPolicyId] = useState(null);       // FIX 3
+  const [activePolicyId,  setActivePolicyId] = useState('default');
+  const [loadingPolicyId, setLoadingPolicyId] = useState(null);
   const [summaryLoading,  setSummaryLoading] = useState(false);
   const [isDragging,      setIsDragging]     = useState(false);
   const [uploading,       setUploading]      = useState(false);
@@ -160,7 +160,6 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const [chatOpen,        setChatOpen]       = useState(false);
   const [chatInput,       setChatInput]      = useState('');
   const [isTyping,        setIsTyping]       = useState(false);
-  // FIX 4: per-policy chat map instead of a single flat array
   const [chatMessagesMap, setChatMessagesMap] = useState({
     default: [makeWelcomeMsg(file?.name ?? null)],
   });
@@ -181,7 +180,8 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const bbs  = { fontFamily:"'Bebas Neue', cursive" };
   const mono = { fontFamily:"'JetBrains Mono', monospace" };
 
-  // FIX 1: openFilePicker — was called everywhere but never defined
+  // Trigger the single shared file input from any button
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const openFilePicker = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
