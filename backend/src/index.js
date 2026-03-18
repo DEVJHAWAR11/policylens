@@ -7,8 +7,14 @@ import historyRoutes from './routes/history.js';
 import ingestRoutes from './routes/ingest.js';
 
 const app = express();
+
+const corsOrigins = (process.env.CORS_ORIGINS || '*')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: '*',
+  origin: corsOrigins.includes('*') ? '*' : corsOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -25,6 +31,8 @@ app.use('/api', queryRoutes);
 app.use('/api', historyRoutes);
 app.use('/api', ingestRoutes);
 
-app.listen(process.env.PORT, () => {
-  console.log(`Server running on port ${process.env.PORT}`);
+const port = Number(process.env.PORT) || 4000;
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });

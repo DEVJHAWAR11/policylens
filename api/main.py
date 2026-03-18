@@ -2,6 +2,7 @@
 
 import sys
 import io
+import os
 
 # Force UTF-8 encoding for stdout and stderr on Windows to prevent logging crashes
 if sys.platform == "win32":
@@ -23,6 +24,12 @@ from api.routes.ingest import router as ingest_router
 from api.routes.health import router as health_router
 
 logger = logging.getLogger(__name__)
+
+
+def _get_cors_origins() -> list[str]:
+    raw_origins = os.getenv("CORS_ORIGINS", "*")
+    origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+    return origins or ["*"]
 
 
 # ------------------------------------------------------------------ #
@@ -51,9 +58,10 @@ app = FastAPI(
 )
 
 # CORS — wide open for development; backend team will restrict in prod
+cors_origins = _get_cors_origins()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -70,4 +78,9 @@ app.include_router(health_router)
 #  Dev entry point
 # ------------------------------------------------------------------ #
 if __name__ == "__main__":
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "api.main:app",
+        host=os.getenv("HOST", "0.0.0.0"),
+        port=int(os.getenv("PORT", "8000")),
+        reload=True,
+    )
