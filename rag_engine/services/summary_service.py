@@ -83,9 +83,8 @@ class SummaryService:
         self._store = get_vector_store()
         self._retriever = PolicyRetriever(self._store, self._embedder)
         self._context_builder = ContextBuilder()
-        # moonshot-v1-8k: fast structured extraction model (5-8s vs 30-40s for kimi-k2.5)
         # 4096 max_tokens gives full room for a rich, detailed JSON summary
-        self._llm = get_llm(max_tokens=4096, model="moonshot-v1-8k")
+        self._llm = get_llm(max_tokens=4096)
         self._supabase = create_client(
             settings.supabase_url, settings.supabase_service_key
         )
