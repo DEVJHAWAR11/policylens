@@ -81,7 +81,7 @@ const DARK = {
 
 import { fetchApi, streamApi } from '../../api';
 
-export default function Dboard({ file, isDark: initDark = true }) {
+export default function Dboard({ isDark: initDark = true }) {
   const [dark,           setDark]           = useState(initDark);
   const [sidebarOpen,    setSidebarOpen]    = useState(true);
   const [activeTab,      setActiveTab]      = useState('home');
@@ -97,9 +97,7 @@ export default function Dboard({ file, isDark: initDark = true }) {
   const [chatMessages,   setChatMessages]   = useState([
     {
       id: 1, sender: 'ai',
-      text: file
-        ? `Hello, I'm IRIS. I've processed "${file.name}". Ask me anything about its clauses, benefits, or exclusions.`
-        : "Hello, I'm IRIS. Upload an insurance policy and I'll analyze every clause, benefit, and exclusion for you.",
+      text: "Hello, I'm IRIS. Upload an insurance policy and I'll analyze every clause, benefit, and exclusion for you.",
     },
   ]);
 
@@ -153,8 +151,6 @@ export default function Dboard({ file, isDark: initDark = true }) {
 
   useEffect(() => {
     loadHistory();
-    // If a file prop was passed (e.g. from a parent route), upload it once
-    if (file) processFile(file);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -264,21 +260,20 @@ export default function Dboard({ file, isDark: initDark = true }) {
     if (picked) processFile(picked);
   }, [processFile]);
 
+  const openFilePicker = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
   const viewPolicy = useCallback((item) => {
     if (item.analysis) {
       // Already cached locally — render immediately
       setActiveAnalysis(item.analysis);
-      setActivePolicyId(item.id);
       setActiveTab('home');
-      setChatMessagesMap(prev => {
-        if (prev[item.id]) return prev;
-        return { ...prev, [item.id]: [makeWelcomeMsg(item.filename)] };
-      });
     } else {
       // Not cached — fetch summary from backend
       fetchSummary(item.id);
     }
-  }, []);
+  }, [fetchSummary]);
 
   // ── Chat send ─────────────────────────────────────────────────────────────
   const sendChat = async () => {
