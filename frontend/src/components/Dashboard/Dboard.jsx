@@ -254,13 +254,19 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const handleZoneClick = useCallback(() => setShowUploadModal(true), []);
 
   const viewPolicy = useCallback((item) => {
-    setActiveAnalysis(item.analysis);
-    setActivePolicyId(item.id);
-    setActiveTab('home');
-    setChatMessagesMap(prev => {
-      if (prev[item.id]) return prev;
-      return { ...prev, [item.id]: [makeWelcomeMsg(item.filename)] };
-    });
+    if (item.analysis) {
+      // Already cached locally — render immediately
+      setActiveAnalysis(item.analysis);
+      setActivePolicyId(item.id);
+      setActiveTab('home');
+      setChatMessagesMap(prev => {
+        if (prev[item.id]) return prev;
+        return { ...prev, [item.id]: [makeWelcomeMsg(item.filename)] };
+      });
+    } else {
+      // Not cached — fetch summary from backend
+      fetchSummary(item.id);
+    }
   }, []);
 
   // ── Chat: real streaming via backend ─────────────────────────────────────
@@ -451,14 +457,12 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
             </div>
           </div>
           <div style={{ display:'flex', gap:8 }}>
-            {item.analysis && (
-              <button
-                onClick={() => viewPolicy(item)}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:10, cursor:'pointer', border:`1px solid ${T.navActiveBrd}`, background:T.navActiveBg, color:T.navActiveClr, ...f, fontSize:12, fontWeight:500, transition:'all .2s' }}
-              >
-                <Eye size={13} /> View
-              </button>
-            )}
+            <button
+              onClick={() => viewPolicy(item)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:10, cursor:'pointer', border:`1px solid ${T.navActiveBrd}`, background:T.navActiveBg, color:T.navActiveClr, ...f, fontSize:12, fontWeight:500, transition:'all .2s' }}
+            >
+              <Eye size={13} /> View
+            </button>
             <button
               onClick={() => setHistory(h => h.filter(x => x.id !== item.id))}
               style={{ width:34, height:34, borderRadius:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', background:'transparent', border:`1px solid ${T.cardBorder}`, color:T.t3, transition:'all .2s' }}
