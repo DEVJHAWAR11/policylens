@@ -17,25 +17,54 @@ _INTERNAL_QUERY = (
     "death benefit premiums"
 )
 
-_SUMMARY_SYSTEM_PROMPT = """You are an insurance policy analyst. Given raw policy document chunks, extract and return a structured JSON summary with these exact keys:
+_SUMMARY_SYSTEM_PROMPT = """\
+You are a friendly insurance policy expert helping everyday people understand their policy.
+Given raw policy document chunks, extract and return a structured JSON summary.
+
+IMPORTANT WRITING RULES:
+- Write every value in plain, simple English that a non-expert can immediately understand.
+- Avoid jargon. If a technical term is unavoidable, explain it in brackets e.g. "surrender value (the money you get if you cancel early)".
+- Keep sentences short and clear. Prefer active voice.
+- For lists (key_benefits, exclusions, important_conditions): each item must be a complete, self-contained sentence.
+- For monetary values, always include the currency and context (e.g. "You receive 10x the annual premium as death payout").
+- For time periods, write in human form (e.g. "15 days" not "15").
+- Never copy raw legal text verbatim — always rephrase it into plain language.
+
+Return ONLY this exact JSON structure. No markdown, no explanation, no code fences:
 
 {
-  "policy_name": "full official name of the policy",
-  "policy_type": "e.g. Deferred Annuity / Term Life / Health etc",
-  "insurer": "name of the insurance company",
-  "uin": "UIN number if present",
-  "key_benefits": ["list of 4-6 main benefits as short strings"],
-  "exclusions": ["list of 4-6 main exclusions as short strings"],
-  "death_benefit": "1-2 sentence summary of death benefit",
-  "survival_benefit": "1-2 sentence summary of survival/maturity benefit",
-  "surrender_value": "1-2 sentence summary of surrender conditions",
-  "loan_facility": "1-2 sentence summary or null if not available",
-  "free_look_period": "e.g. 15 days or 30 days",
-  "tax_benefit": "1-2 sentence summary or null",
-  "important_conditions": ["list of 3-5 important conditions/clauses"]
+  "policy_name": "Full official name of the policy as printed on the document",
+  "policy_type": "Plain English type e.g. Unit-Linked Life Insurance / Term Life / Health Plan / Annuity",
+  "insurer": "Full name of the insurance company",
+  "uin": "UIN or registration number if present, else null",
+  "key_benefits": [
+    "Benefit 1 in plain English — one clear sentence",
+    "Benefit 2 in plain English — one clear sentence",
+    "Benefit 3 in plain English — one clear sentence",
+    "Benefit 4 in plain English — one clear sentence"
+  ],
+  "exclusions": [
+    "Exclusion 1 — what is NOT covered, in plain English",
+    "Exclusion 2 — what is NOT covered, in plain English",
+    "Exclusion 3 — what is NOT covered, in plain English",
+    "Exclusion 4 — what is NOT covered, in plain English"
+  ],
+  "death_benefit": "2-3 sentence plain English explanation of what the family receives if the policyholder dies, including amounts or formulas if available",
+  "survival_benefit": "2-3 sentence plain English explanation of what the policyholder receives if they survive the policy term or at maturity",
+  "surrender_value": "2-3 sentence plain English explanation of what happens and what the policyholder gets if they cancel the policy early",
+  "loan_facility": "2-3 sentence plain English explanation of whether the policyholder can take a loan against this policy and under what conditions, or null if not available",
+  "free_look_period": "Plain English e.g. You have 15 days after receiving the policy to return it for a full refund if you change your mind",
+  "tax_benefit": "2-3 sentence plain English explanation of tax savings this policy offers under relevant sections, or null if not mentioned",
+  "important_conditions": [
+    "Condition 1 — one clear sentence about an important rule or clause",
+    "Condition 2 — one clear sentence about an important rule or clause",
+    "Condition 3 — one clear sentence about an important rule or clause",
+    "Condition 4 — one clear sentence about an important rule or clause"
+  ]
 }
 
-Return ONLY valid JSON. No explanation. No markdown. Just the JSON object. Ensure the JSON is complete and properly closed."""
+Return ONLY the JSON. Ensure it is complete and properly closed.\
+"""
 
 _SUMMARY_TABLE = "policy_summaries"
 
@@ -54,8 +83,9 @@ class SummaryService:
         self._store = get_vector_store()
         self._retriever = PolicyRetriever(self._store, self._embedder)
         self._context_builder = ContextBuilder()
-        # Use higher max_tokens for summary to prevent JSON truncation
-        self._llm = get_llm(max_tokens=8192)
+        # moonshot-v1-8k: fast structured extraction model (5-8s vs 30-40s for kimi-k2.5)
+        # 4096 max_tokens gives full room for a rich, detailed JSON summary
+        self._llm = get_llm(max_tokens=4096, model="moonshot-v1-8k")
         self._supabase = create_client(
             settings.supabase_url, settings.supabase_service_key
         )
@@ -73,7 +103,7 @@ class SummaryService:
         from rag_engine.utils.status_tracker import status_tracker
         status_tracker.update_status(policy_id, "processing", 96, "Generating AI Summary...")
 
-        # Step 1 — retrieve top 10 chunks (reduced from 15 to keep context smaller)
+        # Step 1 — retrieve top 10 chunks
         raw_results = self._retriever.retrieve(
             _INTERNAL_QUERY, policy_id, k=10
         )
@@ -85,14 +115,15 @@ class SummaryService:
             )
             return {"error": "no_chunks", "policy_id": policy_id}
 
-        # Step 2 — build context (reduced to 2000 tokens to leave room for JSON output)
-        context = self._context_builder.build(raw_results, max_tokens=2000)
+        # Step 2 — build context (3000 tokens of source material)
+        context = self._context_builder.build(raw_results, max_tokens=3000)
 
-        # Step 3 — send to LLM with structured extraction prompt
+        # Step 3 — send to LLM
         user_prompt = (
-            f"Here are the policy document chunks for policy {policy_id}:\n\n"
+            f"Here are the policy document chunks:\n\n"
             f"{context}\n\n"
-            "Extract the structured summary as specified. Return complete valid JSON only."
+            "Now extract the complete structured summary in plain English as specified. "
+            "Return complete valid JSON only."
         )
         raw_response = self._llm.complete(
             user_prompt, system=_SUMMARY_SYSTEM_PROMPT
