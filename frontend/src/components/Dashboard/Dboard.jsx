@@ -144,7 +144,7 @@ function UploadZone({ T, dark, isDragging, uploading, uploadPct, onDragOver, onD
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export default function Dboard({ file, isDark: _initDark, userName = 'My Account', initialPolicyId = null }) {
+export default function Dboard({ file, isDark: _initDark, userName = 'My Account', initialPolicyId = null, onTriggerUpload }) {
   // Always boot light — user can toggle via sidebar
   const [dark,            setDark]           = useState(false);
   const [sidebarOpen,     setSidebarOpen]    = useState(true);
@@ -185,8 +185,12 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   // Trigger the single shared file input from any button
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const openFilePicker = useCallback(() => {
+    if (onTriggerUpload) {
+      onTriggerUpload();
+      return;
+    }
     fileInputRef.current?.click();
-  }, []);
+  }, [onTriggerUpload]);
 
   // ── Font / keyframes injection ────────────────────────────────────────────
   useEffect(() => {

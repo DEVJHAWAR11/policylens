@@ -46,8 +46,8 @@ class SupabaseVectorStore(BaseVectorStore):
                 logger.error("FAILED to store batch %d/%d: %s", b_num, total, str(e))
                 raise e
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            list(executor.map(_insert_batch, [(i + 1, b) for i, b in enumerate(batches)]))
+        for i, b in enumerate(batches):
+            _insert_batch((i + 1, b))
             
         logger.info("Successfully stored %d chunks in Supabase", len(chunks))
 
