@@ -82,7 +82,7 @@ const DARK = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const makeWelcomeMsg = (policyName) => ({
-  id: Date.now(),
+  id: crypto.randomUUID(),
   sender: 'ai',
   text: policyName
     ? `Hello, I'm IRIS. I've processed "${policyName}". Ask me anything about its clauses, benefits, or exclusions.`
@@ -160,6 +160,7 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const [chatOpen,        setChatOpen]       = useState(false);
   const [chatInput,       setChatInput]      = useState('');
   const [isTyping,        setIsTyping]       = useState(false);
+  const [chatDimensions,  setChatDimensions] = useState({ w: 360, h: 500 });
   const [chatMessagesMap, setChatMessagesMap] = useState({
     default: [makeWelcomeMsg(file?.name ?? null)],
   });
@@ -170,6 +171,7 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const summaryPollRef  = useRef(null);
   const isProcessingRef = useRef(false); // guard against duplicate processFile calls
   const hasAutoProcessed = useRef(false);
+  const isResizingRef   = useRef(null);
 
   // Derive current chat thread from active policy
   const chatMessages = chatMessagesMap[activePolicyId] ?? chatMessagesMap['default'];
@@ -203,6 +205,34 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior:'smooth' });
   }, [chatMessages, isTyping]);
+  
+  // ── Resizing Logic ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizingRef.current) return;
+      e.preventDefault();
+      
+      const dir = isResizingRef.current;
+      setChatDimensions(prev => {
+        let newW = prev.w;
+        let newH = prev.h;
+        // Anchored bottom-right: dragging left edge left (negative movementX) increases width.
+        if (dir.includes('left')) newW = Math.max(300, Math.min(800, prev.w - e.movementX));
+        // Anchored bottom-right: dragging top edge up (negative movementY) increases height.
+        if (dir.includes('top'))  newH = Math.max(400, Math.min(800, prev.h - e.movementY));
+        return { w: newW, h: newH };
+      });
+    };
+    const handleMouseUp = () => {
+      isResizingRef.current = null;
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
 
   // ── Load history on mount ─────────────────────────────────────────────────
   const loadHistory = useCallback(async () => {
@@ -386,14 +416,14 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
 
     setChatMessagesMap(prev => ({
       ...prev,
-      [activePolicyId]: [...(prev[activePolicyId] ?? []), { id:Date.now(), sender:'user', text }],
+      [activePolicyId]: [...(prev[activePolicyId] ?? []), { id: crypto.randomUUID(), sender:'user', text }],
     }));
     setChatInput('');
     setIsTyping(true);
 
     try {
       if (!pid) throw new Error('Please upload and analyze a policy first.');
-      const aiMsgId = Date.now() + 1;
+      const aiMsgId = crypto.randomUUID();
       setChatMessagesMap(prev => ({
         ...prev,
         [activePolicyId]: [...(prev[activePolicyId] ?? []), { id:aiMsgId, sender:'ai', text:'' }],
@@ -410,7 +440,7 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
       setChatMessagesMap(prev => ({
         ...prev,
         [activePolicyId]: [...(prev[activePolicyId] ?? []), {
-          id: Date.now() + 2, sender:'ai',
+          id: crypto.randomUUID(), sender:'ai',
           text: err.message || 'Failed to get response.',
         }],
       }));
@@ -772,7 +802,13 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
 
       {/* ── CHAT PANEL ── */}
       {chatOpen && (
-        <div className="fade-in" style={{ position:'fixed', bottom:28, right:28, zIndex:100, width:360, height:500, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', background:T.cardBg, border:`1px solid ${T.cardBorder}`, boxShadow:`${T.cardShadow}, 0 0 40px ${dark ? 'rgba(34,211,238,.15)' : 'rgba(13,148,136,.15)'}` }}>
+        <div className="fade-in" style={{ position:'fixed', bottom:28, right:28, zIndex:100, width:chatDimensions.w, height:chatDimensions.h, display:'flex', flexDirection:'column', borderRadius:24, overflow:'hidden', background:T.cardBg, border:`1px solid ${T.cardBorder}`, boxShadow:`${T.cardShadow}, 0 0 40px ${dark ? 'rgba(34,211,238,.15)' : 'rgba(13,148,136,.15)'}` }}>
+          
+          {/* Resize Handles */}
+          <div onMouseDown={() => isResizingRef.current = 'left'} style={{ position:'absolute', left:0, top:0, bottom:0, width:8, cursor:'ew-resize', zIndex:10 }} />
+          <div onMouseDown={() => isResizingRef.current = 'top'} style={{ position:'absolute', left:0, right:0, top:0, height:8, cursor:'ns-resize', zIndex:10 }} />
+          <div onMouseDown={() => isResizingRef.current = 'top-left'} style={{ position:'absolute', left:0, top:0, width:14, height:14, cursor:'nwse-resize', zIndex:11 }} />
+
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', background:T.headerBg, borderBottom:`1px solid ${T.headerBorder}` }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <IrisAvatar size={40} />

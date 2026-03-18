@@ -85,7 +85,11 @@ class GeminiLLM(BaseLLM):
             messages.append({"role": "user", "parts": [system]})
             messages.append({"role": "model", "parts": ["Understood."]})
         messages.append({"role": "user", "parts": [prompt]})
-        return self.stream_with_messages(messages)
+        
+        response_stream = self._client.generate_content(messages, stream=True)
+        for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
 
     def stream_with_messages(self, messages: list[dict]):
         """Accept OpenAI-style dicts, convert, and stream."""

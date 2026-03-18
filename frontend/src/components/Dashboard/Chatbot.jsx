@@ -135,10 +135,10 @@ export default function Chatbot({ file, isDark: initDark }) {
     if (e?.preventDefault) e.preventDefault();
     const text = typeof e === 'string' ? e : chatMessage;
     if (!text.trim()) return;
-    setMessages(p => [...p, { id:Date.now(), sender:'user', text }]);
+    setMessages(p => [...p, { id:crypto.randomUUID(), sender:'user', text }]);
     setChatMessage('');
     setIsTyping(true);
-    const aiMsgId = Date.now() + 1;
+    const aiMsgId = crypto.randomUUID();
     setMessages(p => [...p, { id: aiMsgId, sender: 'ai', text: '' }]);
     
     try {
@@ -151,7 +151,7 @@ export default function Chatbot({ file, isDark: initDark }) {
         ));
       });
     } catch (err) {
-      setMessages(p => [...p, { id: Date.now() + 2, sender: 'ai', text: 'Error: ' + err.message }]);
+      setMessages(p => [...p, { id: crypto.randomUUID(), sender: 'ai', text: 'Error: ' + err.message }]);
     } finally {
       setIsTyping(false);
     }
