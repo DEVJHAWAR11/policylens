@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Navbar from "./components/Navbar/Navbar";
 import Hero from "./components/Hero/Hero";
 import Footer from "./components/Footer/Footer";
@@ -6,6 +6,7 @@ import Login from "./components/Auth/Login";
 import UploadModal from "./components/Dashboard/UploadModal";
 import Dboard from "./components/Dashboard/Dboard";
 import Chatbot from "./components/Dashboard/Chatbot";
+import { fetchApi } from "./api";
 import { supabase } from "./supabaseClient";
 import { isPersonalEmailAllowed, PERSONAL_EMAIL_ERROR } from "./utils/personalEmail";
 
@@ -15,6 +16,19 @@ export default function App() {
   const [userName, setUserName] = useState('');
   const [authError, setAuthError] = useState('');
   const [initialPolicyId, setInitialPolicyId] = useState(null);
+  const lastOAuthSyncKey = useRef('');
+
+  const getRouteFromHash = (rawHash) => {
+    const knownRoutes = new Set(['home', 'login', 'upload', 'dboard', 'dashboard', 'chatbot']);
+    if (!rawHash) return 'home';
+
+    const hash = rawHash.startsWith('#') ? rawHash.slice(1) : rawHash;
+    const firstFragment = hash.split('#')[0];
+    if (knownRoutes.has(firstFragment)) return firstFragment;
+
+    if (hash.includes('access_token=')) return 'login';
+    return 'home';
+  };
 
   useEffect(() => {
     console.log("Current App State:", appState);
@@ -39,6 +53,11 @@ export default function App() {
       setAppState('login');
     };
 
+    const redirectToDashboard = () => {
+      window.history.replaceState({ appState: 'dboard' }, '', '#dboard');
+      setAppState('dboard');
+    };
+
     const enforcePersonalEmailOnly = async (session) => {
       const email = session?.user?.email || session?.email || '';
       if (!email) return false;
@@ -56,22 +75,63 @@ export default function App() {
       return false;
     };
 
-    const syncSession = async (session) => {
+    const syncSession = async (session, event = 'INITIAL_SESSION') => {
+      if (!session?.user?.email) {
+        if (event === 'SIGNED_OUT') {
+          lastOAuthSyncKey.current = '';
+          setUserName('');
+        }
+        return;
+      }
+
       const blocked = await enforcePersonalEmailOnly(session);
-      if (blocked || !session?.user?.email) return;
+      if (blocked) return;
 
       const nextName =
         session.user.user_metadata?.full_name ||
         session.user.user_metadata?.name ||
         session.user.email.split('@')[0];
 
+      try {
+        const syncKey = `${session.user.id}:${session.access_token || ''}`;
+        if (lastOAuthSyncKey.current !== syncKey) {
+          const data = await fetchApi('/auth/google', {
+            method: 'POST',
+            body: {
+              email: session.user.email,
+              name: nextName,
+            },
+          });
+
+          if (!data?.token) {
+            throw new Error('No backend auth token received from OAuth login.');
+          }
+
+          localStorage.setItem('token', data.token);
+          lastOAuthSyncKey.current = syncKey;
+        }
+      } catch (err) {
+        console.error('OAuth session sync failed:', err);
+        localStorage.removeItem('token');
+        await supabase.auth.signOut();
+        setUserName('');
+        setAuthError('Google sign-in failed on server sync. Please try again.');
+        redirectToLogin();
+        return;
+      }
+
       setUserName(nextName || '');
+
+      const currentState = window.location.hash.replace('#', '') || 'home';
+      if (currentState === 'login' || currentState === 'home') {
+        redirectToDashboard();
+      }
     };
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      void syncSession(session);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      void syncSession(session, event);
     });
 
     void supabase.auth.getSession().then(({ data }) => syncSession(data.session));
@@ -80,13 +140,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const initialState = window.location.hash.replace('#', '') || 'home';
-    window.history.replaceState({ appState: initialState }, '', `#${initialState}`);
+    const hash = window.location.hash || '';
+    const hasOAuthFragment = hash.includes('access_token=');
+    const initialState = getRouteFromHash(hash);
+
+    // Keep OAuth fragment untouched initially so Supabase can parse and persist session.
+    if (!hasOAuthFragment) {
+      window.history.replaceState({ appState: initialState }, '', `#${initialState}`);
+    }
+
     setAppState(initialState);
+
     const handlePopState = (e) => {
-      const state = e.state?.appState || 'home';
+      const state = e.state?.appState || getRouteFromHash(window.location.hash || '');
       setAppState(state);
     };
+
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);

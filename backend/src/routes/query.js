@@ -5,7 +5,7 @@ import { supabase } from '../config/supabase.js';
 
 const router = express.Router();
 
-router.post('/query', async (req, res) => {
+router.post('/query', authMiddleware, async (req, res) => {
   const { question, policy_id, k = 8 } = req.body;
   console.log(`[query] Received question for policy ${policy_id}: ${question}`);
 
@@ -31,7 +31,7 @@ router.post('/query', async (req, res) => {
 
 // export default router (moved to bottom)
 
-router.post('/query/stream', async (req, res) => {
+router.post('/query/stream', authMiddleware, async (req, res) => {
   const { question, policy_id, k = 8 } = req.body;
   console.log(`[query/stream] Received question for policy ${policy_id}: ${question}`);
 

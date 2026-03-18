@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, ArrowRight, Sun, Moon, Cpu, Shield, Zap, Lock, X, CheckCircle } from 'lucide-react';
 import { fetchApi } from '../../api';
+import { supabase } from '../../supabaseClient';
 import { isPersonalEmailAllowed, PERSONAL_EMAIL_ERROR } from '../../utils/personalEmail';
 
 const FONT_LINK =
@@ -702,6 +703,7 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
@@ -759,7 +761,31 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
   };
 
   const handleGoogle = async () => {
-    triggerError('Google login is not implemented yet.');
+    setError('');
+    setGoogleLoading(true);
+
+    try {
+      const redirectTo = `${window.location.origin}${window.location.pathname}`;
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+          queryParams: {
+            prompt: 'select_account',
+          },
+        },
+      });
+
+      if (oauthError) throw oauthError;
+      if (!data?.url) throw new Error('Unable to start Google sign-in flow.');
+
+      window.location.assign(data.url);
+      onGoogleSuccess?.();
+    } catch (err) {
+      triggerError(err.message || 'Google login failed. Please try again.');
+      setGoogleLoading(false);
+    }
   };
 
   const f = { fontFamily: "'DM Sans',sans-serif" };
@@ -1022,15 +1048,21 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
               <div style={{ flex: 1, height: 1, background: T.dividerBg }} />
             </div>
 
-            <button type="button" onClick={handleGoogle} style={{
+            <button type="button" onClick={handleGoogle} disabled={googleLoading || loading} style={{
               ...f, width: '100%', padding: '12px', borderRadius: 13, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
               background: T.socialBg, border: `1px solid ${T.socialBorder}`, color: T.socialText,
               fontSize: 13, fontWeight: 500, transition: 'all .15s',
+              opacity: googleLoading ? .75 : 1,
             }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = T.acc; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseEnter={e => {
+                if (!googleLoading && !loading) {
+                  e.currentTarget.style.borderColor = T.acc;
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }
+              }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = T.socialBorder; e.currentTarget.style.transform = 'none'; }}>
-              <GoogleIcon /> Continue with Google
+              <GoogleIcon /> {googleLoading ? 'Redirecting to Google...' : 'Continue with Google'}
             </button>
 
             <p style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: T.t2 }}>
