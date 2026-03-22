@@ -3,6 +3,7 @@ import { Moon, Sun, X, Info, Mail } from 'lucide-react';
 import logo from '../../assets/pla.png';
 // Adding our custom fonts specifically for the modals
 const FONT_LINK = 'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap';
+const PUBLIC_LOGO_FALLBACK = `${import.meta.env.BASE_URL}pla.png`;
 
 export default function Navbar({ isDark, toggleTheme, hideNavLinks }) {
   const [activeModal, setActiveModal] = useState(null);
@@ -35,6 +36,10 @@ export default function Navbar({ isDark, toggleTheme, hideNavLinks }) {
 <div className="flex items-center gap-3 cursor-pointer z-10" onClick={handleHomeClick}>
   <img
     src={logo}
+    onError={(e) => {
+      if (e.currentTarget.src.endsWith('/pla.png')) return;
+      e.currentTarget.src = PUBLIC_LOGO_FALLBACK;
+    }}
     alt="PolicyLens"
     className="h-8 w-auto object-contain rounded-lg"
   />
