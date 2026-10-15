@@ -131,7 +131,7 @@ function UploadZone({ T, dark, isDragging, uploading, uploadPct, onDragOver, onD
           </div>
           <div>
             <p style={{ ...syne, fontSize:16, fontWeight:600, color:T.t1, margin:'0 0 4px 0' }}>Upload your insurance policy</p>
-            <p style={{ ...f, fontSize:13, color:T.t3, margin:0 }}>Drag & drop or click to browse · PDF, DOC up to 20MB</p>
+            <p style={{ ...f, fontSize:13, color:T.t3, margin:0 }}>Drag & drop or click to browse · PDF up to 25MB</p>
           </div>
           <button
             onClick={e => { e.stopPropagation(); onChoose(); }}
@@ -763,7 +763,7 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <p style={{ ...syne, fontSize:14, fontWeight:600, color:T.t1, margin:'0 0 4px 0', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.filename}</p>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', whiteSpace:'nowrap' }}>
               <span style={{ ...mono, fontSize:11, color:T.t3 }}>{item.date}</span>
               <span style={{ color:T.cardBorder }}>·</span>
               <Badge label={item.policy_type} variant="acc" />
@@ -771,7 +771,7 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
               <span style={{ ...f, fontSize:12, color:T.t3 }}>{item.insurer}</span>
             </div>
           </div>
-          <div style={{ display:'flex', gap:8 }}>
+          <div style={{ display:'flex', gap:8, flexShrink:0, whiteSpace:'nowrap' }}>
             {item.status === 'queued' || item.status === 'processing' ? (
               <span style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:10, border:`1px solid ${T.amberBrd}`, background:T.amberBg, color:T.amberClr, ...f, fontSize:12, fontWeight:500 }}>
                 <Loader2 size={13} className="iris-spinner" />
@@ -821,7 +821,7 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,.doc,.docx"
+        accept=".pdf,application/pdf"
         style={{ display:'none' }}
         onChange={handleFileInputChange}
       />
