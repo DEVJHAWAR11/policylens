@@ -1,13 +1,3 @@
----
-title: PolicyLens RAG API
-emoji: 🔍
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # PolicyLens — RAG Engine & API
 
 **PolicyLens** is an AI-powered insurance policy analysis platform. This repository contains the **RAG Engine and FastAPI backend** that powers the core intelligence — upload any PDF policy document and IRIS instantly parses, indexes, and lets you query it in plain English.
@@ -204,42 +194,61 @@ python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 
 ---
 
+## Architecture & deployment
+
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — components, data flow, failure modes, capacity and scaling plan
+- **[docs/DEPLOY_RENDER.md](docs/DEPLOY_RENDER.md)** — step-by-step deploy on Render (+ Upstash Redis, Supabase)
+- **[docs/AUDIT.md](docs/AUDIT.md)** — security/bug audit and what was fixed
+
+---
+
 ## API Reference
 
-> All routes are served directly by FastAPI on port `8000`. In the full platform, Node.js proxies these under `/api/*`.
+The React app talks only to the Node backend (`/api/*`). The Node backend talks to the FastAPI service below
+with a shared `X-Internal-Key`; FastAPI is not meant to be public.
 
-### Ingest
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/ingest/upload` | Upload PDF, starts background ingestion |
-| GET | `/ingest/status/:policy_id` | Poll ingestion progress (0–100%) |
-| GET | `/ingest/summary/:policy_id` | Get structured policy summary |
-
-### Query
+### Node backend (public, JWT-authenticated)
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/query` | Single-turn RAG query, body: `{ question, policy_id }` |
-| POST | `/query/stream` | Streaming token response |
+| POST | `/api/ingest/upload` | Store a PDF and enqueue processing. Send an `Idempotency-Key` header to make retries safe |
+| GET | `/api/ingest/status/:policy_id` | `queued` → `processing` → `ready` / `failed`, with progress (read from the database) |
+| GET | `/api/policies` | List the user's policies with status |
+| POST | `/api/policies/:id/retry` | Re-queue a failed policy |
+| GET | `/api/policies/:id/pdf` | Short-lived signed link to the stored PDF |
+| GET | `/api/policies/:id/summary` | Structured summary |
+| DELETE | `/api/policies/:id` | Delete PDF, vectors, summary, chat history |
+| POST | `/api/query` · `/api/query/stream` | Ask one policy (JSON / streamed text) |
+| POST | `/api/query/multi` | Ask across 2–5 policies (`{ question, policy_ids }`) |
+| GET | `/api/health` · `/api/health/deep` | Liveness · readiness (database, Python, Redis, circuit state) |
 
-### Health
+### FastAPI RAG service (internal)
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/health` | Health check |
+| POST | `/query/` · `/query/stream` · `/query/multi` | RAG pipeline (retrieve → rerank → LLM) |
+| POST/GET | `/ingest/summary/:policy_id` | (Re)generate / fetch a summary |
+| GET | `/` · `/health/` · `/health/stats` | Liveness · Supabase check · cache/worker/LLM-capacity snapshot |
+
+Ingestion itself runs in `rag_engine/worker.py`, which claims jobs from Postgres
+(`FOR UPDATE SKIP LOCKED`) — embedded in the API process by default, or as a separate service.
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `GROQ_API_KEY` | ✅ | Groq API key |
-| `SUPABASE_URL` | ✅ | Supabase project URL |
-| `SUPABASE_SERVICE_KEY` | ✅ | Supabase service role key |
-| `JINA_API_KEY` | ✅ | Jina AI API key |
-| `EMBEDDING_PROVIDER` | ✅ | `jina` or `local` |
-| `USE_LLAMAPARSE` | ❌ | Set `true` to use LlamaParse instead of PyMuPDF |
-| `LLAMA_CLOUD_API_KEY` | ❌ | Only if `USE_LLAMAPARSE=true` |
-| `DEBUG` | ❌ | `true` for verbose logs |
+See `.env.example` and `backend/.env.example` for the full, commented lists. The important ones:
+
+| Variable | Service | Required | Description |
+|---|---|---|---|
+| `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | both | ✅ | Supabase project and service-role key |
+| `JWT_SECRET` | Node | ✅ | ≥32 random characters |
+| `PYTHON_API_URL` | Node | ✅ | URL of the FastAPI service |
+| `INTERNAL_API_KEY` | both | ✅ prod | Shared secret between Node and FastAPI |
+| `GROQ_API_KEY` | Python | ✅ | LLM |
+| `JINA_API_KEY` | Python | ✅ | Embeddings **and** reranking |
+| `REDIS_URL` | both | ❌ | Shared cache/rate limits (e.g. Upstash). Falls back to memory |
+| `CORS_ORIGINS` | both | ✅ prod | Your frontend origin(s) |
+| `RESEND_API_KEY` | Node | ❌ | Password-reset emails |
+| `EMBEDDED_WORKER` | Python | ❌ | `true` (default) runs the ingest worker inside the API process |
+| `LLM_FALLBACK_PROVIDER` | Python | ❌ | e.g. `gemini` — used if the primary LLM errors |

@@ -20,6 +20,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
   backend:
@@ -37,13 +38,17 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  api:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # API tests stub the heavy services, so only the web/config deps are needed
-      - run: pip install fastapi==0.115.0 httpx pydantic-settings python-multipart==0.0.12 supabase pytest
-      - run: python -m pytest api/tests -q
+          cache: pip
+      - run: pip install -r requirements.txt pytest pytest-asyncio httpx
+      # all external services are mocked; SUPABASE_* are dummies for settings validation
+      - run: python -m pytest api/tests rag_engine/tests -q
+        env:
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_KEY: test-key

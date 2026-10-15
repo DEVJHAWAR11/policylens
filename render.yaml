@@ -1,0 +1,86 @@
+# Render Blueprint — creates both services from this repo.
+# Dashboard → New → Blueprint → pick this repo. Secrets marked `sync: false` are
+# prompted for once; see docs/DEPLOY_RENDER.md for where each value comes from.
+#
+# Plans: `starter` ($7/mo each) is the smallest plan that does NOT sleep when idle.
+# `free` works for demos but spins down after 15 min (30–60 s cold start on the next request).
+
+services:
+  # ── Node API: auth, uploads, chat proxy, rate limiting ────────────────────
+  - type: web
+    name: policylens-api
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true          # Render generates a long random value
+      - key: INTERNAL_API_KEY
+        sync: false                  # must equal the value on policylens-rag
+      - key: PYTHON_API_URL
+        sync: false                  # https://policylens-rag.onrender.com
+      - key: CORS_ORIGINS
+        sync: false                  # https://<your-frontend>
+      - key: REDIS_URL
+        sync: false                  # optional: Upstash rediss:// URL
+      - key: RESEND_API_KEY
+        sync: false                  # optional: password-reset emails
+      - key: MAIL_FROM
+        sync: false
+
+  # ── Python RAG service: query pipeline + embedded ingest worker ───────────
+  - type: web
+    name: policylens-rag
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: INTERNAL_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: JINA_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY          # optional: enables LLM_FALLBACK_PROVIDER=gemini
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: LLM_PROVIDER
+        value: groq
+      - key: LLM_MODEL
+        value: openai/gpt-oss-20b
+      - key: EMBEDDING_PROVIDER
+        value: jina
+      - key: RERANKER_PROVIDER
+        value: jina
+      - key: EMBEDDED_WORKER
+        value: "true"                # ingest worker runs inside this service
+      - key: LLM_MAX_CONCURRENCY
+        value: "6"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+# Scaling out later: add a second service from the same Dockerfile with
+#   type: worker, dockerCommand: python -m rag_engine.worker
+# and set EMBEDDED_WORKER=false on policylens-rag. No code changes needed —
+# workers coordinate through Postgres (FOR UPDATE SKIP LOCKED).
