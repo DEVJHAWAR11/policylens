@@ -1,24 +1,50 @@
 import express from 'express';
 import multer from 'multer';
 import FormData from 'form-data';
-import axios from 'axios';
+import rateLimit from 'express-rate-limit';
 import { v4 as uuidv4 } from 'uuid';
 import { authMiddleware } from '../middleware/auth.js';
 import { supabase } from '../config/supabase.js';
+import { pythonApi } from '../config/python.js';
+import { getOwnedPolicy } from '../utils/policies.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() }); // keep file in memory
+const MAX_PDF_BYTES = 25 * 1024 * 1024; // 25 MB
+const upload = multer({
+  storage: multer.memoryStorage(), // keep file in memory
+  limits: { fileSize: MAX_PDF_BYTES, files: 1 },
+});
+
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Upload limit reached. Please try again later.' },
+});
+
+// multer rejects oversize files with an error; turn it into a clean 413
+const handleUpload = (req, res, next) =>
+  upload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'PDF must be 25 MB or smaller' });
+    }
+    return res.status(400).json({ error: 'Invalid upload' });
+  });
 
 // --------------------------------------------------------
 // POST /api/ingest/upload
 // Frontend sends: file (PDF), policy_name (optional label)
 // --------------------------------------------------------
-router.post('/ingest/upload', authMiddleware, upload.single('file'), async (req, res) => {
+router.post('/ingest/upload', authMiddleware, uploadLimiter, handleUpload, async (req, res) => {
   const user_id = req.user.id;
   const file = req.file;
 
   if (!file) return res.status(400).json({ error: 'No file uploaded' });
-  if (!file.originalname.endsWith('.pdf')) return res.status(400).json({ error: 'Only PDFs accepted' });
+  if (!file.originalname.toLowerCase().endsWith('.pdf') || file.buffer.subarray(0, 5).toString() !== '%PDF-') {
+    return res.status(400).json({ error: 'Only PDFs accepted' });
+  }
 
   // 1. Generate a unique policy_id scoped to the user
   const policy_id = `${user_id}_${uuidv4()}`;
@@ -36,14 +62,19 @@ router.post('/ingest/upload', authMiddleware, upload.single('file'), async (req,
     if (storageError) return res.status(500).json({ error: storageError.message });
 
     // 3. Get a signed URL (valid 1 year) for the stored PDF
-    const { data: signedData } = await supabase.storage
+    const { data: signedData, error: signError } = await supabase.storage
       .from('policy-pdfs')
       .createSignedUrl(storage_path, 60 * 60 * 24 * 365);
+
+    if (signError || !signedData?.signedUrl) {
+      await supabase.storage.from('policy-pdfs').remove([storage_path]);
+      return res.status(500).json({ error: 'Could not store the uploaded file' });
+    }
 
     const storage_url = signedData.signedUrl;
 
     // 4. Save policy metadata to policies table
-    await supabase.from('policies').insert({
+    const { error: insertError } = await supabase.from('policies').insert({
       user_id,
       policy_id,
       filename: file.originalname,
@@ -52,9 +83,14 @@ router.post('/ingest/upload', authMiddleware, upload.single('file'), async (req,
       status: 'processing',
     });
 
-    // 5. Forward PDF to Python as multipart — fire-and-forget so Node doesn't hang
-    // Python runs ingestion in background; we just need it to accept the file.
-    // We do NOT await this — LlamaParse takes 60-120s and would block the response.
+    if (insertError) {
+      console.error('[ingest] policies insert failed:', insertError.message);
+      await supabase.storage.from('policy-pdfs').remove([storage_path]);
+      return res.status(500).json({ error: 'Could not save the policy' });
+    }
+
+    // 5. Forward PDF to Python as multipart — fire-and-forget so Node doesn't hang.
+    // Python runs ingestion in the background; we only need it to accept the file.
     const form = new FormData();
     form.append('file', file.buffer, {
       filename: file.originalname,
@@ -63,21 +99,19 @@ router.post('/ingest/upload', authMiddleware, upload.single('file'), async (req,
     form.append('policy_id', policy_id);
     form.append('overwrite', 'false');
 
-    console.log(`[ingest] Forwarding to Python: ${process.env.PYTHON_API_URL}/ingest/upload | policy_id=${policy_id}`);
-
-    axios.post(`${process.env.PYTHON_API_URL}/ingest/upload`, form, {
+    pythonApi.post('/ingest/upload', form, {
       headers: form.getHeaders(),
       maxBodyLength: Infinity,
       maxContentLength: Infinity,
-      timeout: 15000, // 15s — enough for Python to accept file and start background task
-    }).then(resp => {
-      console.log('[ingest] Python accepted upload:', resp.data);
-    }).catch(err => {
-      console.error('[ingest] Python ingest error:', err.message);
-      if (err.response) {
-        console.error('[ingest] Python response status:', err.response.status);
-        console.error('[ingest] Python response body:', JSON.stringify(err.response.data));
-      }
+      timeout: 30000, // enough for Python to accept the file and start its background task
+    }).then((resp) => {
+      console.log('[ingest] Python accepted upload:', resp.data?.status, policy_id);
+    }).catch(async (err) => {
+      console.error('[ingest] Python ingest error:', err.message, err.response?.status || '');
+      await supabase.from('policies')
+        .update({ status: 'failed' })
+        .eq('policy_id', policy_id)
+        .eq('user_id', user_id);
     });
 
     // 6. Return immediately — frontend polls /ingest/status/:policy_id for progress
@@ -91,34 +125,41 @@ router.post('/ingest/upload', authMiddleware, upload.single('file'), async (req,
 
   } catch (err) {
     console.error('[ingest] Fatal error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Upload failed. Please try again.' });
   }
 });
 
 // --------------------------------------------------------
 // GET /api/ingest/status/:policy_id
-// Polls Python, updates policies table when ready
+// Polls Python, updates policies table when ready or failed
 // --------------------------------------------------------
 router.get('/ingest/status/:policy_id', authMiddleware, async (req, res) => {
   const { policy_id } = req.params;
 
-  try {
-    // Ask Python for status
-    const { data } = await axios.get(
-      `${process.env.PYTHON_API_URL}/ingest/status/${policy_id}`
-    );
+  const policy = await getOwnedPolicy(policy_id, req.user.id, 'policy_id, status, chunk_count');
+  if (!policy) return res.status(404).json({ error: 'Policy not found' });
 
-    // If ready, update the policies table
-    if (data.status === 'ready') {
+  try {
+    const { data } = await pythonApi.get(`/ingest/status/${encodeURIComponent(policy_id)}`, {
+      timeout: 15000,
+    });
+
+    if (data.status === 'ready' && policy.status !== 'ready') {
       await supabase.from('policies')
         .update({ status: 'ready', chunk_count: data.chunk_count })
+        .eq('policy_id', policy_id)
+        .eq('user_id', req.user.id);
+    } else if (data.status === 'failed' && policy.status !== 'failed') {
+      await supabase.from('policies')
+        .update({ status: 'failed' })
         .eq('policy_id', policy_id)
         .eq('user_id', req.user.id);
     }
 
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[ingest/status] Proxy error:', err.message);
+    res.status(502).json({ error: 'Could not reach the processing service' });
   }
 });
 
@@ -146,17 +187,27 @@ router.delete('/policies/:policy_id', authMiddleware, async (req, res) => {
   const user_id = req.user.id;
 
   // Get storage path first
-  const { data: policy } = await supabase
-    .from('policies')
-    .select('storage_path')
-    .eq('policy_id', policy_id)
-    .eq('user_id', user_id)
-    .single();
-
+  const policy = await getOwnedPolicy(policy_id, user_id, 'storage_path');
   if (!policy) return res.status(404).json({ error: 'Policy not found' });
 
   // Delete from Supabase Storage
   await supabase.storage.from('policy-pdfs').remove([policy.storage_path]);
+
+  // Delete vector chunks from policy_chunks
+  await supabase.from('policy_chunks')
+    .delete()
+    .filter('metadata->>policy_id', 'eq', policy_id);
+
+  // Delete policy summary if exists
+  await supabase.from('policy_summaries')
+    .delete()
+    .eq('policy_id', policy_id);
+
+  // Delete chat history for this policy
+  await supabase.from('chat_history')
+    .delete()
+    .eq('policy_id', policy_id)
+    .eq('user_id', user_id);
 
   // Delete from policies table
   await supabase.from('policies').delete()
@@ -168,27 +219,18 @@ router.delete('/policies/:policy_id', authMiddleware, async (req, res) => {
 
 // GET /api/policies/:policy_id/summary
 // Fetch the AI-generated summary for a policy
-router.get('/policies/:policy_id/summary', async (req, res) => {
+router.get('/policies/:policy_id/summary', authMiddleware, async (req, res) => {
   const { policy_id } = req.params;
 
-  // bypass user check for debugging
-  /*
-  const { data: policy } = await supabase
-    .from('policies')
-    .select('policy_id')
-    .eq('policy_id', policy_id)
-    .eq('user_id', req.user.id)
-    .single();
-
+  const policy = await getOwnedPolicy(policy_id, req.user.id);
   if (!policy) return res.status(404).json({ error: 'Policy not found' });
-  */
 
   // fetch summary from policy_summaries table
   const { data, error } = await supabase
     .from('policy_summaries')
     .select('policy_id, summary, created_at')
     .eq('policy_id', policy_id)
-    .single();
+    .maybeSingle();
 
   if (error || !data) return res.status(404).json({ error: 'Summary not yet generated' });
   res.json(data);
