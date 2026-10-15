@@ -1,65 +1,65 @@
 # Deploying PolicyLens on Render
 
-Two services (Node API + Python RAG, which also runs the ingest worker), Supabase for data, optional Upstash Redis.
-Frontend stays on Vercel.
+Three parts, all created from `render.yaml` and deployed straight from a GitHub branch of your repo (no merge needed):
 
-## 0. One-time prerequisites
-
-1. **Supabase migrations** `001`–`008` applied (SQL editor, in order). `008` is required by this version of the code.
-2. **Storage bucket** `policy-pdfs`, **private**.
-3. **Keys** ready: Groq, Jina (used for embeddings *and* reranking), Supabase URL + service-role key.
-4. A shared secret: `python -c "import secrets; print(secrets.token_hex(32))"` → `INTERNAL_API_KEY`.
-
-## 1. Create the services
-
-Render dashboard → **New → Blueprint** → select this repo. Render reads `render.yaml` and creates
-`policylens-api` (Node) and `policylens-rag` (Docker). Fill the prompted secrets:
-
-| Variable | policylens-api | policylens-rag |
+| Service | What | Plan |
 |---|---|---|
-| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | ✅ | ✅ |
-| `INTERNAL_API_KEY` | ✅ same value | ✅ same value |
-| `PYTHON_API_URL` | `https://policylens-rag.onrender.com` | — |
-| `CORS_ORIGINS` | `https://<your-frontend>` | `https://<your-frontend>` |
-| `GROQ_API_KEY`, `JINA_API_KEY` | — | ✅ |
-| `GEMINI_API_KEY` (optional fallback) | — | ✅ + set `LLM_FALLBACK_PROVIDER=gemini` |
-| `REDIS_URL` (optional) | ✅ | ✅ same URL |
-| `RESEND_API_KEY`, `MAIL_FROM` | ✅ | — |
+| `policylens-devj-api` | Node API (auth, uploads, chat proxy) | starter ($7/mo) |
+| `policylens-devj-rag` | Python RAG service + embedded ingest worker | starter ($7/mo) |
+| `policylens-devj-web` | React frontend (static) | free |
 
-`JWT_SECRET` is generated for you. `NODE_ENV=production` is preset.
+URLs: `https://policylens-devj-{api,rag,web}.onrender.com`. Supabase stays as the database/storage; Upstash Redis is optional.
 
-> **Plans:** `starter` is the smallest that doesn't sleep. On `free` both services spin down after 15 min idle —
-> fine for a demo; the first request after a pause takes 30–60 s (the app shows a retryable "waking up" message,
-> and queued uploads are picked up as soon as the RAG service wakes).
+## 0. Prerequisites
 
-## 2. Redis (optional, recommended before scaling past one instance)
+1. **Supabase migrations** `001`–`008` applied, and a **private** `policy-pdfs` bucket.
+2. API keys: Groq, Jina (used for embeddings *and* reranking), Supabase service-role key, and the public anon key.
+3. A Render account connected to GitHub, with the Render GitHub app allowed on your fork.
 
-1. [upstash.com](https://upstash.com) → create a Redis database (free tier is plenty).
-2. Copy the **`rediss://`** URL → `REDIS_URL` on **both** services.
-3. Check `GET https://<api>/api/health/deep` → `"redis": "connected"`.
+## 1. Create everything
 
-## 3. Frontend (Vercel)
+Render dashboard → **New → Blueprint** → choose your fork and the branch `feat/scalable-architecture`.
+Render reads `render.yaml` and lists the three services. Everything is preset except these secrets:
 
-Environment variables: `VITE_API_URL=https://policylens-api.onrender.com/api`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-Supabase → Authentication → URL configuration: add your Vercel URL to **Redirect URLs** (and `http://localhost:5173/**` for dev).
+| Variable | Service | Value |
+|---|---|---|
+| `SUPABASE_SERVICE_KEY` | api, rag | Supabase → Settings → API → secret key |
+| `INTERNAL_API_KEY` | api, rag | any long random string — **the same on both** |
+| `GROQ_API_KEY` | rag | console.groq.com/keys |
+| `JINA_API_KEY` | rag | jina.ai |
+| `VITE_SUPABASE_ANON_KEY` | web | Supabase → Settings → API → anon/public key |
 
-## 4. Verify
+`JWT_SECRET` is generated for you.
+
+## 2. Tell Supabase about the new frontend URL
+
+Supabase → Authentication → URL Configuration → add `https://policylens-devj-web.onrender.com/**` to **Redirect URLs**
+(and set **Site URL** to `https://policylens-devj-web.onrender.com`). Google sign-in will not return to the new site until this is done.
+
+## 3. Verify
 
 ```bash
-curl https://policylens-api.onrender.com/api/health/deep     # database, python, redis
-curl https://policylens-rag.onrender.com/health/stats        # needs X-Internal-Key; workers_alive should be 1
+curl https://policylens-devj-api.onrender.com/api/health/deep    # database, python, redis, circuit state
 ```
 
-Then upload a PDF in the app: status should go `queued → processing → ready`.
+Open `https://policylens-devj-web.onrender.com`, sign in, upload a PDF: it should go `queued → processing → ready`.
+
+## 4. Optional extras (service → Environment tab)
+
+- `REDIS_URL` (Upstash `rediss://…`) on **both** API services — shared cache and rate limits.
+- `RESEND_API_KEY`, `MAIL_FROM` on the Node API — password-reset emails.
 
 ## 5. Scaling later
 
-- More capacity: increase the instance count of either service in Render.
-- Dedicated worker: add a service from the same Dockerfile with start command `python -m rag_engine.worker`
-  and set `EMBEDDED_WORKER=false` on `policylens-rag`.
-- Load test: `k6 run loadtest/chat.js` (see the file header for env vars).
+- More capacity: raise the instance count of a service in Render.
+- Dedicated worker: a `type: worker` service from the same Dockerfile with `dockerCommand: python -m rag_engine.worker`,
+  and `EMBEDDED_WORKER=false` on `policylens-devj-rag`.
+- Chat throughput on the Groq free tier is capped by Groq's tokens-per-minute quota — see `docs/ARCHITECTURE.md`.
 
-## 6. Rolling back / migrating from Hugging Face
+## 6. After merging to `main`
 
-The Hugging Face sync workflow was removed. Cut over by pointing `PYTHON_API_URL` at the Render RAG service; the old Space
-can then be paused. Deploy order matters: **migration 008 → RAG service → Node API → frontend**.
+The services are pinned to `feat/scalable-architecture`. Once the branch is merged, change each service's **Branch** to `main`
+in its Settings (or edit `branch:` in `render.yaml`).
+
+> **Plans:** `free` is fine for a demo, but free services sleep after 15 minutes idle, so the first request after a pause takes
+> 30–60 s (the app shows a retryable "waking up" message, and queued uploads run once the RAG service wakes).

@@ -1,16 +1,22 @@
-# Render Blueprint — creates both services from this repo.
-# Dashboard → New → Blueprint → pick this repo. Secrets marked `sync: false` are
-# prompted for once; see docs/DEPLOY_RENDER.md for where each value comes from.
+# Render Blueprint — creates all three parts from this repo/branch.
+# Dashboard → New → Blueprint → pick the repo and the branch below.
+# Only secrets are prompted for (marked `sync: false`); everything else is preset.
+# See docs/DEPLOY_RENDER.md for where each value comes from.
 #
-# Plans: `starter` ($7/mo each) is the smallest plan that does NOT sleep when idle.
+# Plans: `starter` ($7/mo) is the smallest plan that does NOT sleep when idle.
 # `free` works for demos but spins down after 15 min (30–60 s cold start on the next request).
+# The static frontend is free and never sleeps.
+#
+# Service names are baked into the URLs below (https://<name>.onrender.com). If you rename a
+# service, update PYTHON_API_URL, CORS_ORIGINS and VITE_API_URL to match.
 
 services:
   # ── Node API: auth, uploads, chat proxy, rate limiting ────────────────────
   - type: web
-    name: policylens-api
+    name: policylens-devj-api
     runtime: node
     plan: starter
+    branch: feat/scalable-architecture
     rootDir: backend
     buildCommand: npm ci
     startCommand: npm start
@@ -22,35 +28,30 @@ services:
       - key: NODE_ENV
         value: production
       - key: SUPABASE_URL
-        sync: false
+        value: https://vunrsplpurvevodesupu.supabase.co
       - key: SUPABASE_SERVICE_KEY
         sync: false
       - key: JWT_SECRET
         generateValue: true          # Render generates a long random value
       - key: INTERNAL_API_KEY
-        sync: false                  # must equal the value on policylens-rag
+        sync: false                  # must equal the value on policylens-devj-rag
       - key: PYTHON_API_URL
-        sync: false                  # https://policylens-rag.onrender.com
+        value: https://policylens-devj-rag.onrender.com
       - key: CORS_ORIGINS
-        sync: false                  # https://<your-frontend>
-      - key: REDIS_URL
-        sync: false                  # optional: Upstash rediss:// URL
-      - key: RESEND_API_KEY
-        sync: false                  # optional: password-reset emails
-      - key: MAIL_FROM
-        sync: false
+        value: https://policylens-devj-web.onrender.com
 
   # ── Python RAG service: query pipeline + embedded ingest worker ───────────
   - type: web
-    name: policylens-rag
+    name: policylens-devj-rag
     runtime: docker
     plan: starter
+    branch: feat/scalable-architecture
     dockerfilePath: ./Dockerfile
     healthCheckPath: /
     autoDeploy: true
     envVars:
       - key: SUPABASE_URL
-        sync: false
+        value: https://vunrsplpurvevodesupu.supabase.co
       - key: SUPABASE_SERVICE_KEY
         sync: false
       - key: INTERNAL_API_KEY
@@ -59,12 +60,8 @@ services:
         sync: false
       - key: JINA_API_KEY
         sync: false
-      - key: GEMINI_API_KEY          # optional: enables LLM_FALLBACK_PROVIDER=gemini
-        sync: false
       - key: CORS_ORIGINS
-        sync: false
-      - key: REDIS_URL
-        sync: false
+        value: https://policylens-devj-web.onrender.com
       - key: LLM_PROVIDER
         value: groq
       - key: LLM_MODEL
@@ -80,7 +77,37 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
 
-# Scaling out later: add a second service from the same Dockerfile with
-#   type: worker, dockerCommand: python -m rag_engine.worker
-# and set EMBEDDED_WORKER=false on policylens-rag. No code changes needed —
-# workers coordinate through Postgres (FOR UPDATE SKIP LOCKED).
+  # ── React frontend (static, free, never sleeps) ───────────────────────────
+  - type: web
+    name: policylens-devj-web
+    runtime: static
+    branch: feat/scalable-architecture
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: VITE_API_URL
+        value: https://policylens-devj-api.onrender.com/api
+      - key: VITE_SUPABASE_URL
+        value: https://vunrsplpurvevodesupu.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false                  # public "anon" key (Supabase → Settings → API)
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+# Optional extras, added later in each service's Environment tab:
+#   REDIS_URL (Upstash)        — shared cache / rate limits on both API services
+#   RESEND_API_KEY, MAIL_FROM  — password-reset emails (Node API)
+# Scaling out later: add a `type: worker` service from the same Dockerfile with
+#   dockerCommand: python -m rag_engine.worker   and set EMBEDDED_WORKER=false above.

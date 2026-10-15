@@ -42,3 +42,6 @@ Thumbs.db
 # Stray root-level npm files (the real ones live in frontend/ and backend/)
 /package.json
 /package-lock.json
+
+# Local deploy helper files that contain secrets — never commit
+deploy-secrets/
