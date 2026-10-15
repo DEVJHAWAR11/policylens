@@ -77,6 +77,13 @@ class IngestWorker:
             result = self._ingestion_service().ingest(tmp_path, policy_id, overwrite=True)
             logger.info("Ingest finished for %s: %s", policy_id, result)
 
+            # The user may have deleted the policy while we were working on it; the
+            # delete route already removed what existed then, so drop what we just wrote.
+            if not self._policy_row_exists(policy_id):
+                logger.info("%s was deleted during ingest — removing its chunks", policy_id)
+                self._ingestion_service()._store.delete_policy(policy_id)
+                return
+
             self._generate_summary(policy_id)
         except Exception as exc:
             logger.exception("Ingest failed for %s", policy_id)
@@ -93,6 +100,12 @@ class IngestWorker:
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+
+    def _policy_row_exists(self, policy_id: str) -> bool:
+        res = (
+            self._db.table("policies").select("policy_id").eq("policy_id", policy_id).limit(1).execute()
+        )
+        return bool(res.data)
 
     def _generate_summary(self, policy_id: str) -> None:
         """Summary is a bonus: a failure here must not fail an otherwise-ready policy."""

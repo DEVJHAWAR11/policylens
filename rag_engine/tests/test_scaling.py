@@ -161,6 +161,7 @@ def test_worker_requeues_on_first_failure_and_fails_after_max_attempts():
 def test_worker_marks_ready_even_if_summary_fails():
     w = _worker()
     w._db.storage.from_().download.return_value = b"%PDF-1.4"
+    w._db.table().select().eq().limit().execute.return_value = MagicMock(data=[{"policy_id": "P"}])
     service = MagicMock()
     service.ingest.return_value = {"status": "success", "chunks": 3}
     w._service = service
@@ -187,3 +188,18 @@ def test_tracker_never_throttles_terminal_states_and_survives_db_errors():
     assert status_tracker.get_status("T1")["status"] == "ready"
     status_tracker.clear("T1")
     status_tracker._client = None
+
+
+def test_worker_cleans_up_chunks_when_policy_deleted_mid_ingest():
+    w = _worker()
+    w._db.storage.from_().download.return_value = b"%PDF-1.4"
+    w._db.table().select().eq().limit().execute.return_value = MagicMock(data=[])  # row is gone
+    service = MagicMock()
+    service.ingest.return_value = {"status": "success", "chunks": 3}
+    w._service = service
+
+    with patch("rag_engine.worker.status_tracker"), patch.object(w, "_generate_summary") as summary:
+        w.process({"job_policy_id": "P", "job_storage_path": "u/P.pdf", "job_attempts": 1})
+
+    service._store.delete_policy.assert_called_once_with("P")
+    summary.assert_not_called()

@@ -13,6 +13,9 @@ ALTER TABLE policies ADD COLUMN IF NOT EXISTS error       TEXT;
 ALTER TABLE policies ADD COLUMN IF NOT EXISTS upload_key  TEXT;
 ALTER TABLE policies ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ NOT NULL DEFAULT now();
 
+-- signed URLs are now generated on demand (short-lived) instead of stored for a year
+ALTER TABLE policies ALTER COLUMN storage_url DROP NOT NULL;
+
 ALTER TABLE policies DROP CONSTRAINT IF EXISTS policies_status_check;
 ALTER TABLE policies ADD CONSTRAINT policies_status_check
   CHECK (status IN ('queued','processing','ready','failed'));

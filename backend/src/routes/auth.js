@@ -2,9 +2,9 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import rateLimit from 'express-rate-limit';
 import { supabase } from '../config/supabase.js';
 import { sendResetCodeEmail } from '../utils/mailer.js';
+import { perMinutes } from '../utils/limiter.js';
 
 const router = express.Router();
 
@@ -12,14 +12,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_RESET_ATTEMPTS = 5;
 const RESET_CODE_TTL_MS = 10 * 60 * 1000;
 
-const limiter = (max, windowMinutes = 15) =>
-  rateLimit({
-    windowMs: windowMinutes * 60 * 1000,
-    limit: max,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Too many requests. Please try again later.' },
-  });
+const limiter = (max, windowMinutes = 15) => perMinutes(windowMinutes, max);
 
 const normalizeEmail = (email) =>
   typeof email === 'string' ? email.toLowerCase().trim() : '';
