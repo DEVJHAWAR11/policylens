@@ -4,6 +4,7 @@ import {
   CheckCircle2, Loader, Cpu, Zap, Lock, Eye, Sun, Moon, AlertTriangle
 } from 'lucide-react';
 import { fetchApi } from '../../api';
+import { pollPolicyStatus } from '../../policyStatus';
 
 /* ── fonts + keyframes ──────────────────────────────────── */
 const FONT_LINK =
@@ -174,57 +175,51 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
     completedRef.current = false;
     setPct(5); setStage(0); stageRef.current = 0;
 
-    let pollId;
-    let pollErrors = 0;
+    const controller = new AbortController();
 
     const startUpload = async () => {
+      let pid = null;
       try {
-        // POST the file to the backend
+        // Same Idempotency-Key on every retry => a dropped connection can never create a duplicate policy
         const fd = new FormData();
         fd.append('file', file);
         const data = await fetchApi('/ingest/upload', {
           method: 'POST',
           body: fd,
+          retry: 2,
+          timeout: 120_000,
+          signal: controller.signal,
+          headers: { 'Idempotency-Key': crypto.randomUUID() },
         });
-        const pid = data.policy_id;
+        pid = data.policy_id;
         setProcessedPid(pid);
         setPct(20);
 
-        // Poll for processing status every 2 s
-        pollId = setInterval(async () => {
-          try {
-            const sData = await fetchApi(`/ingest/status/${pid}`);
-            if (sData.progress !== undefined) setPct(sData.progress);
-            if (sData.message)                setBackendMsg(sData.message);
+        // Backs off, pauses while offline, survives transient errors
+        const final = await pollPolicyStatus(pid, {
+          signal: controller.signal,
+          onProgress: (st) => {
+            if (st.progress !== undefined) setPct(Math.max(20, st.progress));
+            if (st.message) setBackendMsg(st.message);
+          },
+        });
 
-            // When the backend reports 'ready', push pct to 100 and let the
-            // completion effect (below) take over — poll is done here.
-            if (sData.status === 'ready') {
-              clearInterval(pollId);
-              setPct(100);
-            } else if (sData.status === 'failed') {
-              clearInterval(pollId);
-              setStatus('idle');
-              setError(sData.message || 'Processing failed. Please try again.');
-            }
-          } catch {
-            // transient network errors: keep polling, but give up after ~3 minutes
-            if (++pollErrors >= 90) {
-              clearInterval(pollId);
-              setStatus('idle');
-              setError('Lost connection while processing. Please try again.');
-            }
-          }
-        }, 2000);
-
+        // 'ready': push pct to 100 and let the completion effect (below) take over
+        if (final.status === 'ready') {
+          setPct(100);
+        } else {
+          setStatus('idle');
+          setError(final.message || 'Processing failed. Please try again.');
+        }
       } catch (err) {
+        if (controller.signal.aborted) return;
         setStatus('idle');
-        setError('Upload failed: ' + err.message);
+        setError(pid ? `Processing problem: ${err.message}` : `Upload failed: ${err.message}`);
       }
     };
 
     startUpload();
-    return () => { if (pollId) clearInterval(pollId); };
+    return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]); // ← ONLY 'status' — file is accessed via closure, not a dep
 

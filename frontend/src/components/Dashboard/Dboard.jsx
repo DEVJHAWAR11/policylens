@@ -6,7 +6,9 @@ import {
   Home, Aperture, Sun, Moon, Menu, BadgeCheck, Banknote, LogOut,
   RefreshCw, Send, Loader2, MessageSquare,
 } from 'lucide-react';
-import { fetchApi, streamApi } from '../../api';
+import { fetchApi, streamApi, StreamInterruptedError } from '../../api';
+import { pollPolicyStatus } from '../../policyStatus';
+import ComparePanel from './ComparePanel';
 
 const FONT_LINK =
   'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Syne:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap';
@@ -162,6 +164,8 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const [chatInput,       setChatInput]      = useState('');
   const [isTyping,        setIsTyping]       = useState(false);
   const [isSigningOut,    setIsSigningOut]   = useState(false);
+  const [selectedIds,     setSelectedIds]    = useState([]);   // policies ticked for comparison
+  const [compareOpen,     setCompareOpen]    = useState(false);
   const [chatDimensions,  setChatDimensions] = useState({ w: 430, h: 620 });
   const [chatMessagesMap, setChatMessagesMap] = useState({
     default: [makeWelcomeMsg(file?.name ?? null)],
@@ -177,6 +181,7 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const isProcessingRef = useRef(false); // guard against duplicate processFile calls
   const hasAutoProcessed = useRef(false);
   const isResizingRef   = useRef(null);
+  const watchersRef     = useRef(new Map()); // policy_id -> AbortController for status polling
 
   // Derive current chat thread from active policy
   const chatMessages = chatMessagesMap[activePolicyId] ?? chatMessagesMap['default'];
@@ -280,6 +285,25 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
     };
   }, []);
 
+  // ── Track a policy that is still queued/processing (survives page reloads) ─
+  const watchPolicy = useCallback((pid) => {
+    if (watchersRef.current.has(pid)) return;
+    const controller = new AbortController();
+    watchersRef.current.set(pid, controller);
+    const apply = (st) => setHistory(h => h.map(x =>
+      x.id === pid ? { ...x, status: st.status, progress: st.progress ?? 0, message: st.message } : x
+    ));
+    pollPolicyStatus(pid, { signal: controller.signal, onProgress: apply })
+      .then(apply)
+      .catch(() => {})
+      .finally(() => watchersRef.current.delete(pid));
+  }, []);
+
+  useEffect(() => {
+    const watchers = watchersRef.current;
+    return () => { watchers.forEach(c => c.abort()); watchers.clear(); };
+  }, []);
+
   // ── Load history on mount ─────────────────────────────────────────────────
   const loadHistory = useCallback(async () => {
     try {
@@ -290,12 +314,40 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
         date:        new Date(item.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }),
         policy_type: item.policy_type ?? 'Detected',
         insurer:     item.insurer     ?? 'PolicyLens AI',
+        status:      item.status,
+        progress:    item.progress ?? 0,
+        message:     item.message,
         analysis:    null,
       })));
+      data.filter(i => i.status === 'queued' || i.status === 'processing')
+          .forEach(i => watchPolicy(i.policy_id));
     } catch (err) {
       console.error('Failed to load history:', err);
     }
+  }, [watchPolicy]);
+
+  // ── Delete / retry a policy ───────────────────────────────────────────────
+  const deletePolicy = useCallback(async (item) => {
+    if (!window.confirm(`Delete "${item.filename}" and its chat history? This cannot be undone.`)) return;
+    try {
+      await fetchApi(`/policies/${item.id}`, { method: 'DELETE' });
+      watchersRef.current.get(item.id)?.abort();
+      setHistory(h => h.filter(x => x.id !== item.id));
+      setSelectedIds(ids => ids.filter(id => id !== item.id));
+    } catch (err) {
+      window.alert(`Could not delete the policy: ${err.message}`);
+    }
   }, []);
+
+  const retryPolicy = useCallback(async (item) => {
+    try {
+      await fetchApi(`/policies/${item.id}/retry`, { method: 'POST' });
+      setHistory(h => h.map(x => x.id === item.id ? { ...x, status: 'queued', progress: 0, message: 'Waiting in queue' } : x));
+      watchPolicy(item.id);
+    } catch (err) {
+      window.alert(`Could not retry: ${err.message}`);
+    }
+  }, [watchPolicy]);
 
   // ── Poll for summary after ingest completes (up to 2 min) ────────────────
   const pollForSummary = useCallback((policy_id) => {
@@ -388,49 +440,41 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
     setUploading(true);
     setUploadPct(5);
 
+    let pid = null;
     try {
       const fd = new FormData();
       fd.append('file', pickedFile);
-      const data = await fetchApi('/ingest/upload', { method:'POST', body:fd });
-      const pid  = data.policy_id;
+      // Same Idempotency-Key on every retry => a dropped connection can never create a duplicate policy
+      const data = await fetchApi('/ingest/upload', {
+        method: 'POST', body: fd, retry: 2, timeout: 120_000,
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+      });
+      pid = data.policy_id;
       setUploadPct(20);
 
-      let pollErrors = 0;
-      const poll = setInterval(async () => {
-        try {
-          const sData = await fetchApi(`/ingest/status/${pid}`);
-          if (sData.progress !== undefined) setUploadPct(sData.progress);
-          if (sData.status === 'failed') {
-            clearInterval(poll);
-            setUploading(false);
-            isProcessingRef.current = false;
-            window.alert(sData.message || 'Processing failed. Please try uploading again.');
-            return;
-          }
-          if (sData.status === 'ready') {
-            clearInterval(poll);
-            setUploadPct(100);
-            setTimeout(() => {
-              setUploading(false);
-              isProcessingRef.current = false;
-              loadHistory();
-              pollForSummary(pid);
-            }, 800);
-          }
-        } catch {
-          // transient error — keep polling; give up after ~3 minutes of failures
-          if (++pollErrors >= 90) {
-            clearInterval(poll);
-            setUploading(false);
-            isProcessingRef.current = false;
-            window.alert('Lost connection while processing. Please refresh and check your policies.');
-          }
-        }
-      }, 2000);
+      // this upload is tracked right here; stop loadHistory from starting a second poller for it
+      watchersRef.current.set(pid, new AbortController());
+      await loadHistory();
+
+      const final = await pollPolicyStatus(pid, {
+        onProgress: (st) => setUploadPct(Math.max(20, st.progress ?? 0)),
+      });
+      if (final.status === 'failed') throw new Error(final.message || 'Processing failed. Please try uploading again.');
+
+      setUploadPct(100);
+      setTimeout(() => {
+        setUploading(false);
+        isProcessingRef.current = false;
+        loadHistory();
+        pollForSummary(pid);
+      }, 800);
     } catch (err) {
       setUploading(false);
       isProcessingRef.current = false;
-      window.alert(`Upload failed: ${err.message}`);
+      window.alert(pid ? `Processing problem: ${err.message}` : `Upload failed: ${err.message}`);
+      loadHistory();
+    } finally {
+      if (pid) watchersRef.current.delete(pid);
     }
   }, [loadHistory, pollForSummary]);
 
@@ -473,37 +517,46 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
     const pid  = activePolicyId !== 'default'
       ? activePolicyId
       : activeAnalysis?.policy_id ?? (history.length > 0 ? history[0].id : null);
+    const threadKey = activePolicyId;
+    const aiMsgId = crypto.randomUUID();
+    let gotTokens = false;
 
-    setChatMessagesMap(prev => ({
-      ...prev,
-      [activePolicyId]: [...(prev[activePolicyId] ?? []), { id: crypto.randomUUID(), sender:'user', text }],
+    const append = (msg) => setChatMessagesMap(prev => ({
+      ...prev, [threadKey]: [...(prev[threadKey] ?? []), msg],
     }));
+
+    append({ id: crypto.randomUUID(), sender:'user', text });
     setChatInput('');
     setIsTyping(true);
 
     try {
       if (!pid) throw new Error('Please upload and analyze a policy first.');
-      const aiMsgId = crypto.randomUUID();
-      setChatMessagesMap(prev => ({
-        ...prev,
-        [activePolicyId]: [...(prev[activePolicyId] ?? []), { id:aiMsgId, sender:'ai', text:'' }],
-      }));
+      append({ id:aiMsgId, sender:'ai', text:'' });
       await streamApi('/query/stream', { method:'POST', body:{ question:text, policy_id:pid } }, (token) => {
+        gotTokens = true;
         setChatMessagesMap(prev => ({
           ...prev,
-          [activePolicyId]: prev[activePolicyId].map(m =>
+          [threadKey]: prev[threadKey].map(m =>
             m.id === aiMsgId ? { ...m, text: m.text + token } : m
           ),
         }));
       });
     } catch (err) {
-      setChatMessagesMap(prev => ({
-        ...prev,
-        [activePolicyId]: [...(prev[activePolicyId] ?? []), {
-          id: crypto.randomUUID(), sender:'ai',
-          text: err.message || 'Failed to get response.',
-        }],
-      }));
+      const interrupted = err instanceof StreamInterruptedError;
+      const canRetry = interrupted || err.retryable;
+      // drop the empty placeholder if nothing arrived; keep any partial answer
+      if (!gotTokens) {
+        setChatMessagesMap(prev => ({ ...prev, [threadKey]: (prev[threadKey] ?? []).filter(m => m.id !== aiMsgId) }));
+      }
+      if (canRetry) setChatInput(text); // the question is back in the box — one click to retry
+      append({
+        id: crypto.randomUUID(), sender:'ai',
+        text: interrupted
+          ? 'The connection dropped while I was answering. Your question is back in the box — press send to try again.'
+          : canRetry
+            ? `${err.message} Your question is back in the box — press send to try again.`
+            : err.message || 'Failed to get response.',
+      });
     } finally {
       setIsTyping(false);
     }
@@ -679,8 +732,32 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const renderHistory = () => (
     <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:12 }}>
       {history.length === 0 && <div style={{ textAlign:'center', padding:'60px 0', color:T.t3, ...f }}>No documents analyzed yet.</div>}
+      {selectedIds.length >= 2 && !compareOpen && (
+        <button onClick={() => setCompareOpen(true)}
+          style={{ alignSelf:'flex-start', padding:'9px 18px', borderRadius:12, cursor:'pointer', border:`1px solid ${T.navActiveBrd}`, background:T.navActiveBg, color:T.navActiveClr, ...f, fontSize:13, fontWeight:600 }}>
+          Compare {selectedIds.length} selected policies
+        </button>
+      )}
+      {compareOpen && selectedIds.length >= 2 && (
+        <ComparePanel
+          T={T}
+          ids={selectedIds}
+          names={selectedIds.map(id => history.find(x => x.id === id)?.filename ?? id)}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
       {history.map(item => (
         <div key={item.id} style={{ display:'flex', alignItems:'center', gap:16, padding:'18px 22px', borderRadius:18, background:T.cardBg, border:`1px solid ${T.cardBorder}`, boxShadow:T.cardShadow }}>
+          {item.status === 'ready' && (
+            <input
+              type="checkbox"
+              aria-label={`Select ${item.filename} for comparison`}
+              checked={selectedIds.includes(item.id)}
+              disabled={!selectedIds.includes(item.id) && selectedIds.length >= 5}
+              onChange={() => setSelectedIds(ids => ids.includes(item.id) ? ids.filter(x => x !== item.id) : [...ids, item.id])}
+              style={{ width:16, height:16, cursor:'pointer', accentColor:T.acc, flexShrink:0 }}
+            />
+          )}
           <div style={{ width:44, height:44, borderRadius:12, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:T.accBg, border:`1px solid ${T.cardBorder}` }}>
             <FileText size={20} style={{ color:T.acc }} />
           </div>
@@ -695,7 +772,17 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
             </div>
           </div>
           <div style={{ display:'flex', gap:8 }}>
-            {item.summaryPending ? (
+            {item.status === 'queued' || item.status === 'processing' ? (
+              <span style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:10, border:`1px solid ${T.amberBrd}`, background:T.amberBg, color:T.amberClr, ...f, fontSize:12, fontWeight:500 }}>
+                <Loader2 size={13} className="iris-spinner" />
+                {item.status === 'queued' ? 'In queue…' : `Processing ${Math.round(item.progress || 0)}%`}
+              </span>
+            ) : item.status === 'failed' ? (
+              <button onClick={() => retryPolicy(item)} title={item.message || 'Processing failed'}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:10, cursor:'pointer', border:`1px solid ${T.redClr}`, background:T.redBg, color:T.redClr, ...f, fontSize:12, fontWeight:500 }}>
+                <RefreshCw size={13} /> Failed — Retry
+              </button>
+            ) : item.summaryPending ? (
               <span style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:10, border:`1px solid ${T.amberBrd}`, background:T.amberBg, color:T.amberClr, ...f, fontSize:12, fontWeight:500 }}>
                 <Loader2 size={13} className="iris-spinner" /> Processing…
               </span>
@@ -712,7 +799,8 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
               </button>
             )}
             <button
-              onClick={() => setHistory(h => h.filter(x => x.id !== item.id))}
+              onClick={() => deletePolicy(item)}
+              aria-label={`Delete ${item.filename}`}
               style={{ width:34, height:34, borderRadius:10, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', background:'transparent', border:`1px solid ${T.cardBorder}`, color:T.t3, transition:'all .2s' }}
               onMouseEnter={e => { e.currentTarget.style.borderColor=T.redClr; e.currentTarget.style.color=T.redClr; e.currentTarget.style.background=T.redBg; }}
               onMouseLeave={e => { e.currentTarget.style.borderColor=T.cardBorder; e.currentTarget.style.color=T.t3; e.currentTarget.style.background='transparent'; }}

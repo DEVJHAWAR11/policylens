@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Navbar from "./components/Navbar/Navbar";
 import Hero from "./components/Hero/Hero";
 import Footer from "./components/Footer/Footer";
+import ConnectionBanner from "./components/ConnectionBanner";
 import Login from "./components/Auth/Login";
 import UploadModal from "./components/Dashboard/UploadModal";
 import Dboard from "./components/Dashboard/Dboard";
@@ -10,7 +11,7 @@ import { fetchApi, AUTH_EXPIRED_EVENT } from "./api";
 import { supabase } from "./supabaseClient";
 import { isPersonalEmailAllowed, PERSONAL_EMAIL_ERROR } from "./utils/personalEmail";
 
-export default function App() {
+function AppInner() {
   const [isDark, setIsDark] = useState(false);
   const [appState, setAppState] = useState('home');
   const [userName, setUserName] = useState('');
@@ -343,5 +344,14 @@ export default function App() {
 
       {appState === 'home' && <Footer />}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <ConnectionBanner />
+      <AppInner />
+    </>
   );
 }
