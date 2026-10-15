@@ -6,7 +6,7 @@ import Login from "./components/Auth/Login";
 import UploadModal from "./components/Dashboard/UploadModal";
 import Dboard from "./components/Dashboard/Dboard";
 import Chatbot from "./components/Dashboard/Chatbot";
-import { fetchApi } from "./api";
+import { fetchApi, AUTH_EXPIRED_EVENT } from "./api";
 import { supabase } from "./supabaseClient";
 import { isPersonalEmailAllowed, PERSONAL_EMAIL_ERROR } from "./utils/personalEmail";
 
@@ -35,10 +35,6 @@ export default function App() {
     if (hash.includes('access_token=')) return 'login';
     return 'home';
   };
-
-  useEffect(() => {
-    console.log("Current App State:", appState);
-  }, [appState]);
 
   useEffect(() => {
     if (isDark) {
@@ -104,12 +100,11 @@ export default function App() {
       try {
         const syncKey = `${session.user.id}:${session.access_token || ''}`;
         if (lastOAuthSyncKey.current !== syncKey) {
+          // The backend verifies this Supabase access token itself; it never trusts
+          // an email sent in the body.
           const data = await fetchApi('/auth/google', {
             method: 'POST',
-            body: {
-              email: session.user.email,
-              name: nextName,
-            },
+            headers: { Authorization: `Bearer ${session.access_token}` },
           });
 
           if (!data?.token) {
@@ -125,7 +120,7 @@ export default function App() {
         localStorage.removeItem('oauth_redirect_intent');
         await supabase.auth.signOut();
         setUserName('');
-        setAuthError('Google sign-in failed on server sync. Please try again.');
+        setAuthError(`Google sign-in failed on server sync: ${err.message || 'Please try again.'}`);
         redirectToLogin();
         return;
       }
@@ -184,10 +179,33 @@ export default function App() {
 
   const toggleTheme = () => setIsDark(!isDark);
 
+  // Backend rejected our session token → sign out and go back to login.
+  useEffect(() => {
+    const onExpired = async () => {
+      localStorage.removeItem('oauth_redirect_intent');
+      lastOAuthSyncKey.current = '';
+      setUserName('');
+      setAuthError('Your session expired. Please sign in again.');
+      try { await supabase.auth.signOut(); } catch { /* already signed out */ }
+      window.history.replaceState({ appState: 'login' }, '', '#login');
+      setAppState('login');
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
+
+  // Dashboard-side routes need a session; send everyone else to login.
+  const isProtectedRoute = ['dboard', 'dashboard', 'chatbot', 'upload'].includes(appState);
+  const hasSession = Boolean(localStorage.getItem('token'));
+  if (!isAuthResolving && isProtectedRoute && !hasSession) {
+    window.history.replaceState({ appState: 'login' }, '', '#login');
+    setTimeout(() => setAppState('login'), 0);
+    return null;
+  }
+
   const handleUploadComplete = (policyId) => {
     // UploadModal already completed the upload — just navigate to dashboard.
     // We store the received policy_id so Dboard knows which policy to open automatically.
-    console.log("Upload finished! Routing to Dboard with policy:", policyId);
     setInitialPolicyId(policyId);
     navigateTo('dboard');
   };

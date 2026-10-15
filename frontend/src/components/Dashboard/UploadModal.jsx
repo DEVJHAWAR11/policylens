@@ -175,6 +175,7 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
     setPct(5); setStage(0); stageRef.current = 0;
 
     let pollId;
+    let pollErrors = 0;
 
     const startUpload = async () => {
       try {
@@ -193,8 +194,6 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
         pollId = setInterval(async () => {
           try {
             const sData = await fetchApi(`/ingest/status/${pid}`);
-            console.log('[DEBUG] Poll status:', sData);
-
             if (sData.progress !== undefined) setPct(sData.progress);
             if (sData.message)                setBackendMsg(sData.message);
 
@@ -203,9 +202,18 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
             if (sData.status === 'ready') {
               clearInterval(pollId);
               setPct(100);
+            } else if (sData.status === 'failed') {
+              clearInterval(pollId);
+              setStatus('idle');
+              setError(sData.message || 'Processing failed. Please try again.');
             }
-          } catch (e) {
-            console.error('[POLL ERROR]', e);
+          } catch {
+            // transient network errors: keep polling, but give up after ~3 minutes
+            if (++pollErrors >= 90) {
+              clearInterval(pollId);
+              setStatus('idle');
+              setError('Lost connection while processing. Please try again.');
+            }
           }
         }, 2000);
 
@@ -217,6 +225,7 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
 
     startUpload();
     return () => { if (pollId) clearInterval(pollId); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]); // ← ONLY 'status' — file is accessed via closure, not a dep
 
   // ── Stage advancement + completion detector ──
@@ -244,8 +253,8 @@ export default function UploadModal({ onUploadComplete, onCancel }) {
       setError('Invalid file type. Please upload a PDF document.');
       return;
     }
-    if (f.size > 50 * 1024 * 1024) {
-      setError('File is too large. Maximum size is 50 MB.');
+    if (f.size > 25 * 1024 * 1024) {
+      setError('File is too large. Maximum size is 25 MB.');
       return;
     }
     setFile(f); setStatus('idle'); setPct(0); setStage(-1);

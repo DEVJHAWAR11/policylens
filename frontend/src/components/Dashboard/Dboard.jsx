@@ -190,7 +190,6 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
   const displayUserInitial = displayUserName.charAt(0).toUpperCase();
 
   // Trigger the single shared file input from any button
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const openFilePicker = useCallback(() => {
     if (onTriggerUpload) {
       onTriggerUpload();
@@ -396,10 +395,18 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
       const pid  = data.policy_id;
       setUploadPct(20);
 
+      let pollErrors = 0;
       const poll = setInterval(async () => {
         try {
           const sData = await fetchApi(`/ingest/status/${pid}`);
           if (sData.progress !== undefined) setUploadPct(sData.progress);
+          if (sData.status === 'failed') {
+            clearInterval(poll);
+            setUploading(false);
+            isProcessingRef.current = false;
+            window.alert(sData.message || 'Processing failed. Please try uploading again.');
+            return;
+          }
           if (sData.status === 'ready') {
             clearInterval(poll);
             setUploadPct(100);
@@ -410,14 +417,20 @@ export default function Dboard({ file, isDark: _initDark, userName = 'My Account
               pollForSummary(pid);
             }, 800);
           }
-        } catch (e) {
-          console.error('[POLL ERROR]', e);
+        } catch {
+          // transient error — keep polling; give up after ~3 minutes of failures
+          if (++pollErrors >= 90) {
+            clearInterval(poll);
+            setUploading(false);
+            isProcessingRef.current = false;
+            window.alert('Lost connection while processing. Please refresh and check your policies.');
+          }
         }
       }, 2000);
     } catch (err) {
       setUploading(false);
       isProcessingRef.current = false;
-      console.error('Upload failed:', err.message);
+      window.alert(`Upload failed: ${err.message}`);
     }
   }, [loadHistory, pollForSummary]);
 

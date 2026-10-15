@@ -1,20 +1,18 @@
 import { ArrowRight, FileText, Loader, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const StarField = () => {
-  const [stars, setStars] = useState([]);
-
-  useEffect(() => {
-    const newStars = Array.from({ length: 40 }).map((_, i) => ({
+  const [stars] = useState(() =>
+    Array.from({ length: 40 }).map((_, i) => ({
       id: i,
       left: `${Math.random() * 100}%`,
       top: `${Math.random() * 100}%`,
       size: `${Math.random() * 3 + 1}px`,
       animationDelay: `${Math.random() * 4}s`,
-      opacity: Math.random() * 0.5 + 0.1
-    }));
-    setStars(newStars);
-  }, []);
+      opacity: Math.random() * 0.5 + 0.1,
+      glow: `${Math.random() * 4 + 2}px`,
+    }))
+  );
 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none hidden dark:block transition-opacity duration-1000">
@@ -29,7 +27,7 @@ const StarField = () => {
             height: star.size,
             animationDelay: star.animationDelay,
             opacity: star.opacity,
-            boxShadow: `0 0 ${Math.random() * 4 + 2}px rgba(34, 211, 238, 0.8)`
+            boxShadow: `0 0 ${star.glow} rgba(34, 211, 238, 0.8)`
           }}
         />
       ))}
