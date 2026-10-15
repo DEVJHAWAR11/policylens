@@ -4,16 +4,19 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# policy ids are "<uuid>_<uuid>" — keep the accepted alphabet tight
+POLICY_ID_PATTERN = r"^[A-Za-z0-9._-]{1,128}$"
 
 
 # ------------------------------------------------------------------ #
 #  Query
 # ------------------------------------------------------------------ #
 class QueryRequest(BaseModel):
-    question: str
-    policy_id: str
-    k: int = 8
+    question: str = Field(min_length=1, max_length=2000)
+    policy_id: str = Field(pattern=POLICY_ID_PATTERN)
+    k: int = Field(default=8, ge=1, le=20)
 
 
 class SourceItem(BaseModel):
@@ -36,12 +39,6 @@ class QueryResponse(BaseModel):
 # ------------------------------------------------------------------ #
 #  Ingest
 # ------------------------------------------------------------------ #
-class IngestRequest(BaseModel):
-    policy_id: str
-    pdf_url: str | None = None  # optional: download from URL
-    overwrite: bool = False
-
-
 class IngestResponse(BaseModel):
     status: str  # "success", "skipped", "processing"
     policy_id: str

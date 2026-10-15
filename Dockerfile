@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir --timeout 300 --upgrade pip && \
 # Embedding is now via Jina API — no local model download needed
 ENV HF_HOME=/app/model_cache
 ENV SENTENCE_TRANSFORMERS_HOME=/app/model_cache/sentence_transformers
-RUN python -c "from sentence_transformers import CrossEncoder; print('Downloading reranker...'); CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2'); print('Reranker cached.')"
+RUN python -c "from sentence_transformers import CrossEncoder; print('Downloading reranker...'); CrossEncoder('cross-encoder/ms-marco-TinyBERT-L-2-v2'); print('Reranker cached.')"
 
 # Copy entire project
 COPY . .
@@ -30,11 +30,12 @@ COPY . .
 RUN mkdir -p /tmp/policydecoder_uploads
 
 # Expose port
+ENV PORT=7860
 EXPOSE 7860
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:7860/ || exit 1
+    CMD curl -fs http://localhost:${PORT}/ || exit 1
 
 # Start FastAPI server
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]

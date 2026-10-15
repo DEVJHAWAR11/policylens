@@ -6,10 +6,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=(".env", "../.env"),
+        case_sensitive=False,
+        extra="ignore",
+    )
 
-    # required — will error if missing
-    llama_cloud_api_key: str
+    # optional — only needed if USE_LLAMAPARSE=true (pymupdf4llm is default)
+    llama_cloud_api_key: str = ""
     supabase_url: str
     supabase_service_key: str
 
@@ -46,6 +50,13 @@ class Settings(BaseSettings):
 
     # reranker
     reranker_provider: str = "cross_encoder"
+    reranker_model: str = "cross-encoder/ms-marco-TinyBERT-L-2-v2"
+
+    # security — shared secret the Node backend sends as X-Internal-Key.
+    # When empty the API is open (dev only).
+    internal_api_key: str = ""
+    cors_origins: str = "*"
+    max_upload_mb: int = 25
 
     # backend integration
     port: int = 4000

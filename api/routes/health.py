@@ -23,9 +23,11 @@ async def health_check():
     except Exception:
         supabase_ok = False
 
+    from rag_engine.config.settings import settings
+
     return HealthResponse(
         status="ok" if supabase_ok else "degraded",
         version="1.0.0",
         supabase_connected=supabase_ok,
-        model="BAAI/bge-base-en-v1.5 + kimi-k2.5",
+        model=f"{settings.embedding_model} + {settings.llm_model}",
     )

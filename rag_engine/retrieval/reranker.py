@@ -10,10 +10,12 @@ logger = get_logger(__name__)
 class CrossEncoderReranker:
     """Re-score and re-order retrieval results with a cross-encoder model."""
 
-    def __init__(
-        self, model_name: str = "cross-encoder/ms-marco-TinyBERT-L-2-v2"
-    ) -> None:
+    def __init__(self, model_name: str | None = None) -> None:
         from sentence_transformers import CrossEncoder
+
+        from rag_engine.config.settings import settings
+
+        model_name = model_name or settings.reranker_model
 
         self._model = CrossEncoder(model_name)
         self._model_name = model_name
@@ -38,5 +40,5 @@ class CrossEncoderReranker:
         results.sort(key=lambda r: r["rerank_score"], reverse=True)
         top_results = results[:top_k]
 
-        logger.info("Reranked %d → %d results", len(results), top_k)
+        logger.info("Reranked %d → %d results", len(results), len(top_results))
         return top_results

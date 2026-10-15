@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   rag-api:
     build: .
@@ -10,6 +8,7 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+      - PORT=8000
     volumes:
       - /tmp/policydecoder_uploads:/tmp/policydecoder_uploads
     restart: unless-stopped
@@ -19,3 +18,16 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+
+  node-backend:
+    build: ./backend
+    container_name: policydecoder-backend
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./backend/.env
+    environment:
+      - PYTHON_API_URL=http://rag-api:8000
+    depends_on:
+      - rag-api
+    restart: unless-stopped
