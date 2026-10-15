@@ -23,6 +23,7 @@ export default function App() {
     return hasOAuthFragment || hasOAuthIntent;
   });
   const lastOAuthSyncKey = useRef('');
+  const syncInFlight = useRef(null);
 
   const getRouteFromHash = (rawHash) => {
     const knownRoutes = new Set(['home', 'login', 'upload', 'dboard', 'dashboard', 'chatbot']);
@@ -84,6 +85,7 @@ export default function App() {
         localStorage.removeItem('oauth_redirect_intent');
         if (event === 'SIGNED_OUT') {
           lastOAuthSyncKey.current = '';
+          syncInFlight.current = null;
           setUserName('');
         }
         return;
@@ -100,19 +102,26 @@ export default function App() {
       try {
         const syncKey = `${session.user.id}:${session.access_token || ''}`;
         if (lastOAuthSyncKey.current !== syncKey) {
-          // The backend verifies this Supabase access token itself; it never trusts
-          // an email sent in the body.
-          const data = await fetchApi('/auth/google', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-
-          if (!data?.token) {
-            throw new Error('No backend auth token received from OAuth login.');
+          // Supabase fires several auth events at once (INITIAL_SESSION, SIGNED_IN,
+          // getSession). Share one in-flight request so the backend is only hit once
+          // and every caller waits for the token before continuing.
+          if (syncInFlight.current?.key !== syncKey) {
+            // The backend verifies this Supabase access token itself; it never trusts
+            // an email sent in the body.
+            const promise = fetchApi('/auth/google', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            }).then((data) => {
+              if (!data?.token) {
+                throw new Error('No backend auth token received from OAuth login.');
+              }
+              localStorage.setItem('token', data.token);
+              lastOAuthSyncKey.current = syncKey;
+            });
+            syncInFlight.current = { key: syncKey, promise };
+            promise.catch(() => { syncInFlight.current = null; }); // allow retry after failure
           }
-
-          localStorage.setItem('token', data.token);
-          lastOAuthSyncKey.current = syncKey;
+          await syncInFlight.current.promise;
         }
       } catch (err) {
         console.error('OAuth session sync failed:', err);
@@ -166,6 +175,7 @@ export default function App() {
       window.history.replaceState({ appState: initialState }, '', `#${initialState}`);
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync initial route from the URL hash once on mount
     setAppState(initialState);
 
     const handlePopState = (e) => {
@@ -184,6 +194,7 @@ export default function App() {
     const onExpired = async () => {
       localStorage.removeItem('oauth_redirect_intent');
       lastOAuthSyncKey.current = '';
+      syncInFlight.current = null;
       setUserName('');
       setAuthError('Your session expired. Please sign in again.');
       try { await supabase.auth.signOut(); } catch { /* already signed out */ }
@@ -242,6 +253,7 @@ export default function App() {
           localStorage.removeItem('token');
           localStorage.removeItem('oauth_redirect_intent');
           lastOAuthSyncKey.current = '';
+          syncInFlight.current = null;
           setAuthError('');
           setUserName('');
           try {
