@@ -203,3 +203,91 @@ def test_worker_cleans_up_chunks_when_policy_deleted_mid_ingest():
 
     service._store.delete_policy.assert_called_once_with("P")
     summary.assert_not_called()
+
+
+def test_worker_uses_original_filename_as_source_label():
+    w = _worker()
+    w._db.storage.from_().download.return_value = b"%PDF-1.4"
+    w._db.table().select().eq().limit().execute.return_value = MagicMock(
+        data=[{"policy_id": "P", "filename": "../My Policy (2024).pdf"}]
+    )
+    seen = {}
+    service = MagicMock()
+    service.ingest.side_effect = lambda path, pid, overwrite: seen.setdefault("name", __import__("os").path.basename(path)) and {"status": "success"}
+    w._service = service
+
+    with patch("rag_engine.worker.status_tracker"), patch.object(w, "_generate_summary"):
+        w.process({"job_policy_id": "P", "job_storage_path": "u/P.pdf", "job_attempts": 1})
+
+    assert seen["name"] == "My Policy (2024).pdf"  # sanitised, no path traversal, not a temp name
+
+
+# ------------------------------------------------- rate limits (providers)
+def test_throttle_spaces_calls_and_rejects_long_waits():
+    from rag_engine.infra.throttle import RateLimiter
+
+    limiter = RateLimiter(per_minute=600)  # one slot every 0.1s
+    started = time.monotonic()
+    for _ in range(4):
+        limiter.acquire()
+    assert time.monotonic() - started >= 0.25  # 4 calls need 3 gaps
+
+    slow = RateLimiter(per_minute=1)  # one slot per minute
+    slow.acquire()
+    with pytest.raises(llm_guard.ServiceBusy):
+        slow.acquire(max_wait=1.0)
+
+
+def test_throttle_disabled_when_zero():
+    from rag_engine.infra.throttle import RateLimiter
+
+    limiter = RateLimiter(per_minute=0)
+    started = time.monotonic()
+    for _ in range(50):
+        limiter.acquire()
+    assert time.monotonic() - started < 0.1
+
+
+def test_retry_honours_provider_hint_and_never_retries_backpressure(monkeypatch):
+    from rag_engine.utils import retry as retry_mod
+
+    sleeps = []
+    monkeypatch.setattr(retry_mod.time, "sleep", lambda s: sleeps.append(s))
+
+    calls = {"n": 0}
+
+    @retry_mod.with_retry(max_retries=2, delay=0.1, backoff=2.0)
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("Rate limit reached. Please try again in 7.2s.")
+        return "ok"
+
+    assert flaky() == "ok"
+    assert sleeps and sleeps[0] >= 7.2  # waited what the provider asked, not our 0.1s
+
+    busy_calls = {"n": 0}
+
+    @retry_mod.with_retry(max_retries=5, delay=0.1)
+    def busy():
+        busy_calls["n"] += 1
+        raise llm_guard.ServiceBusy()
+
+    with pytest.raises(llm_guard.ServiceBusy):
+        busy()
+    assert busy_calls["n"] == 1
+
+
+def test_is_rate_limited_detection():
+    class RateLimitError(Exception):
+        pass
+
+    class Resp:
+        status_code = 429
+
+    http_429 = Exception("x")
+    http_429.response = Resp()
+
+    assert llm_guard.is_rate_limited(RateLimitError("groq"))
+    assert llm_guard.is_rate_limited(http_429)
+    assert not llm_guard.is_rate_limited(ValueError("nope"))

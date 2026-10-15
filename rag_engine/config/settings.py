@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # llm
     llm_provider: str = "groq"
     llm_model: str = "openai/gpt-oss-20b"
+    # gpt-oss models "think" before answering; those hidden tokens count against provider
+    # rate limits and add seconds of latency. Extractive Q&A over a document needs little.
+    llm_reasoning_effort: str = "low"   # low | medium | high ("" = provider default)
 
     # reranker: "jina" (hosted API, default), "cross_encoder" (local, needs torch), "none"
     reranker_provider: str = "jina"
@@ -62,6 +65,10 @@ class Settings(BaseSettings):
     llm_max_concurrency: int = 6
     llm_queue_timeout_seconds: float = 20.0
     llm_fallback_provider: str = ""  # e.g. "gemini" — used if the primary provider errors
+
+    # Jina (embeddings + reranking) client-side throttle, calls/minute across both. 0 = off.
+    # Free tier is roughly 100 RPM; keep headroom, and divide by the number of instances.
+    jina_max_rpm: int = 80
 
     # ingest worker
     embedded_worker: bool = True       # run the worker loop inside the API process

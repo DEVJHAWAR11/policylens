@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import os
 import random
+import re
+import shutil
 import signal
 import tempfile
 import threading
@@ -64,13 +66,17 @@ class IngestWorker:
         attempts = job.get("job_attempts", 1)
         logger.info("Worker picked up %s (attempt %s)", policy_id, attempts)
 
-        tmp_path = None
+        tmp_dir = None
         try:
             status_tracker.update_status(policy_id, "processing", 3, "Downloading PDF...")
             data = self._db.storage.from_(settings.storage_bucket).download(storage_path)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(data)
-                tmp_path = tmp.name
+
+            # Save under the user's original filename: the pipeline records it as the
+            # chunk's source_file, which is what answers cite ("from <filename>").
+            tmp_dir = tempfile.mkdtemp(prefix="ingest_")
+            tmp_path = os.path.join(tmp_dir, self._original_filename(policy_id))
+            with open(tmp_path, "wb") as fh:
+                fh.write(data)
 
             # overwrite=True makes retries idempotent: partial chunks from a crashed
             # attempt are replaced instead of treated as "already ingested".
@@ -98,8 +104,22 @@ class IngestWorker:
                 error=str(exc)[:500],
             )
         finally:
-            if tmp_path and os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+            if tmp_dir:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def _original_filename(self, policy_id: str) -> str:
+        """The user's uploaded filename, made safe to use as a local file name."""
+        try:
+            res = (
+                self._db.table("policies").select("filename").eq("policy_id", policy_id).limit(1).execute()
+            )
+            name = (res.data or [{}])[0].get("filename") or ""
+        except Exception:
+            name = ""
+        name = re.sub(r"[^A-Za-z0-9._ \-()]", "_", os.path.basename(name)).strip(" .")
+        if not name.lower().endswith(".pdf"):
+            name = f"{name or policy_id}.pdf"
+        return name[:150]
 
     def _policy_row_exists(self, policy_id: str) -> bool:
         res = (

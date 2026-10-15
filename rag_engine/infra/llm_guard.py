@@ -32,3 +32,11 @@ def llm_slot():
         yield
     finally:
         _semaphore.release()
+
+
+def is_rate_limited(exc: BaseException) -> bool:
+    """True if *exc* is a provider rate-limit (HTTP 429), however the SDK wraps it."""
+    if type(exc).__name__ == "RateLimitError":
+        return True
+    status = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
+    return status == 429

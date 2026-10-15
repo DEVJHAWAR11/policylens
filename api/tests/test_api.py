@@ -24,7 +24,11 @@ class FakeQueryService:
         if self.busy:
             raise ServiceBusy(retry_after=7)
 
+    raise_exc = None
+
     def query(self, question, policy_id, k):
+        if self.raise_exc:
+            raise self.raise_exc
         return {"answer": "42", "policy_id": policy_id, "source_count": 0, "sources": []}
 
     def query_multi_policy(self, question, policy_ids, k_per_policy):
@@ -96,3 +100,20 @@ def test_internal_key_enforced(client, monkeypatch):
     assert client.post("/query/", json=body).status_code == 401
     assert client.post("/query/", json=body, headers={"X-Internal-Key": "wrong"}).status_code == 401
     assert client.post("/query/", json=body, headers={"X-Internal-Key": "secret"}).status_code == 200
+
+
+def test_provider_rate_limit_becomes_retryable_503(client):
+    class RateLimitError(Exception):
+        pass
+
+    client.app.state.query_service.raise_exc = RateLimitError("429 from groq")
+    r = client.post("/query/", json={"question": "hi", "policy_id": "abc_123"})
+    assert r.status_code == 503
+    assert r.headers["retry-after"] == "10"
+
+
+def test_unexpected_failure_is_a_generic_500(client):
+    client.app.state.query_service.raise_exc = RuntimeError("secret internals")
+    r = client.post("/query/", json={"question": "hi", "policy_id": "abc_123"})
+    assert r.status_code == 500
+    assert "secret internals" not in r.text

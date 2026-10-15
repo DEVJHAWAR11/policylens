@@ -14,6 +14,7 @@ from __future__ import annotations
 import requests
 
 from rag_engine.config.settings import settings
+from rag_engine.infra.jina_limiter import jina_limiter
 from rag_engine.utils.logger import get_logger
 from rag_engine.utils.retry import with_retry
 
@@ -36,6 +37,7 @@ class JinaReranker:
 
     @with_retry(max_retries=2, delay=0.5, backoff=2.0)
     def _call(self, query: str, documents: list[str], top_n: int) -> list[dict]:
+        jina_limiter.acquire(max_wait=10.0)  # reranking is optional: don't wait long for a slot
         response = requests.post(
             _JINA_RERANK_URL,
             headers={

@@ -12,6 +12,9 @@ from .base_embedder import BaseEmbedder
 
 logger = get_logger(__name__)
 
+# one limiter shared by embeddings and reranking: Jina's limit is per API key
+from rag_engine.infra.jina_limiter import jina_limiter as _limiter  # noqa: E402
+
 
 class JinaEmbedder(BaseEmbedder):
     """Calls the Jina Embeddings v3 REST API with 768-dim output."""
@@ -68,7 +71,7 @@ class JinaEmbedder(BaseEmbedder):
 
     # ── internal ──────────────────────────────────────────────────────────────────
 
-    @with_retry(max_retries=3, delay=1.0, backoff=2.0)
+    @with_retry(max_retries=4, delay=1.0, backoff=2.0)
     def _call_api(self, texts: list[str]) -> list[list[float]]:
         headers = {
             "Authorization": f"Bearer {self._api_key}",
@@ -79,6 +82,7 @@ class JinaEmbedder(BaseEmbedder):
             "input": texts,
             "dimensions": self._dimensions,  # Jina v3 supports Matryoshka truncation
         }
+        _limiter.acquire()
         response = requests.post(
             self._api_url, headers=headers, json=payload, timeout=60
         )
