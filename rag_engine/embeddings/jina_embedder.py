@@ -37,7 +37,16 @@ class JinaEmbedder(BaseEmbedder):
         return "jina-embeddings-v3"
 
     def embed_query(self, text: str) -> list[float]:
-        return self._call_api([text])[0]
+        from rag_engine.config.settings import settings
+        from rag_engine.infra.cache import cache, make_key
+
+        key = make_key("emb", self._model, str(self._dimensions), text)
+        cached = cache.get_json(key)
+        if cached:
+            return cached
+        vector = self._call_api([text])[0]
+        cache.set_json(key, vector, settings.embedding_cache_ttl_seconds)
+        return vector
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Process in batches of 100 (Jina API limit) concurrently."""
@@ -48,7 +57,7 @@ class JinaEmbedder(BaseEmbedder):
         
         all_embeddings: list[list[float]] = []
         
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             # map preserves order
             results = list(executor.map(self._call_api, batches))
             

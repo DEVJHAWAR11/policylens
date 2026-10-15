@@ -2,12 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps — pymupdf needs these
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    curl \
-    libmupdf-dev \
+# curl is only for the healthcheck; every dependency ships prebuilt wheels,
+# so no compilers are needed (keeps the image small and builds fast)
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (Docker layer caching — faster rebuilds)
@@ -17,11 +14,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --timeout 300 --upgrade pip && \
     pip install --no-cache-dir --timeout 300 -r requirements.txt
 
-# Pre-download reranker model at BUILD time
-# Embedding is now via Jina API — no local model download needed
-ENV HF_HOME=/app/model_cache
-ENV SENTENCE_TRANSFORMERS_HOME=/app/model_cache/sentence_transformers
-RUN python -c "from sentence_transformers import CrossEncoder; print('Downloading reranker...'); CrossEncoder('cross-encoder/ms-marco-TinyBERT-L-2-v2'); print('Reranker cached.')"
+# Pre-cache the tiktoken vocabulary at build time (otherwise first use downloads it at runtime)
+ENV TIKTOKEN_CACHE_DIR=/app/.tiktoken
+RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
 
 # Copy entire project
 COPY . .
@@ -38,4 +33,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -fs http://localhost:${PORT}/ || exit 1
 
 # Start FastAPI server
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT}"]
+# One image, two roles. API (default) runs the embedded ingest worker too; for a
+# dedicated worker service override the command with:  python -m rag_engine.worker
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --timeout-keep-alive 75"]

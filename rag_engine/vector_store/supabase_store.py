@@ -11,7 +11,8 @@ from .base_store import BaseVectorStore
 
 logger = get_logger(__name__)
 
-_BATCH_SIZE = 50
+_BATCH_SIZE = 100
+_INSERT_WORKERS = 4
 
 
 class SupabaseVectorStore(BaseVectorStore):
@@ -25,50 +26,60 @@ class SupabaseVectorStore(BaseVectorStore):
     # ------------------------------------------------------------------ #
     #  write
     # ------------------------------------------------------------------ #
-    @with_retry(max_retries=3, delay=1.0, backoff=2.0)
     def add_chunks(self, chunks: list[tuple[str, list[float], dict]]) -> None:
+        """Insert chunks in parallel batches; each batch retries independently."""
         from concurrent.futures import ThreadPoolExecutor
 
         rows = [
             {"content": text, "embedding": vector, "metadata": meta}
             for text, vector, meta in chunks
         ]
-        total = (len(rows) + _BATCH_SIZE - 1) // _BATCH_SIZE
         batches = [rows[i : i + _BATCH_SIZE] for i in range(0, len(rows), _BATCH_SIZE)]
+        total = len(batches)
 
-        def _insert_batch(batch_data: tuple[int, list[dict]]):
-            b_num, b_rows = batch_data
-            logger.info("Inserting batch %d/%d (%d rows) to Supabase...", b_num, total, len(b_rows))
-            try:
-                self._client.table(self._table).insert(b_rows).execute()
-                logger.info("Batch %d/%d stored successfully (%d rows)", b_num, total, len(b_rows))
-            except Exception as e:
-                logger.error("FAILED to store batch %d/%d: %s", b_num, total, str(e))
-                raise e
+        @with_retry(max_retries=3, delay=1.0, backoff=2.0)
+        def _insert_batch(args: tuple[int, list[dict]]) -> None:
+            b_num, b_rows = args
+            self._client.table(self._table).insert(b_rows).execute()
+            logger.info("Batch %d/%d stored (%d rows)", b_num, total, len(b_rows))
 
-        for i, b in enumerate(batches):
-            _insert_batch((i + 1, b))
-            
+        # list() surfaces the first exception; a failed batch fails the whole ingest,
+        # and the worker's retry re-ingests with overwrite=True so nothing is duplicated.
+        with ThreadPoolExecutor(max_workers=_INSERT_WORKERS) as pool:
+            list(pool.map(_insert_batch, enumerate(batches, start=1)))
+
         logger.info("Successfully stored %d chunks in Supabase", len(chunks))
 
     # ------------------------------------------------------------------ #
     #  read
     # ------------------------------------------------------------------ #
-    @with_retry(max_retries=3, delay=1.0, backoff=2.0)
+    @with_retry(max_retries=3, delay=0.5, backoff=2.0)
     def similarity_search(
         self,
         query_embedding: list[float],
         k: int = 8,
         filter_dict: dict | None = None,
     ) -> list[dict]:
-        response = self._client.rpc(
-            "match_policy_chunks",
-            {
-                "query_embedding": query_embedding,
-                "match_count": k,
-                "filter": filter_dict or {},
-            },
-        ).execute()
+        filter_dict = filter_dict or {}
+        if set(filter_dict) == {"policy_id"}:
+            # exact per-policy search (btree first, then rank) — see migration 008
+            response = self._client.rpc(
+                "match_policy_chunks_v2",
+                {
+                    "query_embedding": query_embedding,
+                    "p_policy_id": filter_dict["policy_id"],
+                    "match_count": k,
+                },
+            ).execute()
+        else:
+            response = self._client.rpc(
+                "match_policy_chunks",
+                {
+                    "query_embedding": query_embedding,
+                    "match_count": k,
+                    "filter": filter_dict,
+                },
+            ).execute()
         results = [
             {
                 "content": r["content"],
@@ -84,25 +95,26 @@ class SupabaseVectorStore(BaseVectorStore):
     #  delete / exists
     # ------------------------------------------------------------------ #
     def delete_policy(self, policy_id: str) -> None:
-        self._client.table(self._table).delete().filter(
-            "metadata->>policy_id", "eq", policy_id
-        ).execute()
+        self._client.table(self._table).delete().eq("policy_id", policy_id).execute()
         logger.info("Deleted all chunks for policy_id=%s", policy_id)
 
+    @with_retry(max_retries=3, delay=0.5, backoff=2.0)
     def policy_exists(self, policy_id: str) -> bool:
         response = (
             self._client.table(self._table)
-            .select("id", count="exact")
-            .filter("metadata->>policy_id", "eq", policy_id)
+            .select("id")
+            .eq("policy_id", policy_id)
+            .limit(1)
             .execute()
         )
-        return (response.count or 0) > 0
+        return bool(response.data)
 
     def get_policy_chunk_count(self, policy_id: str) -> int:
         response = (
             self._client.table(self._table)
             .select("id", count="exact")
-            .filter("metadata->>policy_id", "eq", policy_id)
+            .eq("policy_id", policy_id)
+            .limit(1)
             .execute()
         )
         return response.count or 0

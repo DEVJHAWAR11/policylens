@@ -16,13 +16,12 @@ from rag_engine.retrieval.query_preprocessor import QueryPreprocessor
 class TestFullRetrievalToContextPipeline(unittest.TestCase):
 
     def test_full_retrieval_to_context_pipeline(self):
-        """query → preprocess → filter extraction → context build"""
+        """query → preprocess → context build"""
         preprocessor = QueryPreprocessor()
         context_builder = ContextBuilder()
 
         query = "is flood damage covered"
         processed = preprocessor.preprocess(query)
-        filters = preprocessor.extract_filters(processed, "POL-001")
 
         mock_results = [
             {
@@ -48,8 +47,6 @@ class TestFullRetrievalToContextPipeline(unittest.TestCase):
         context = context_builder.build(mock_results)
 
         assert "?" in processed
-        assert filters["coverage_category"] == "flood"
-        assert filters["policy_id"] == "POL-001"
         assert "Source 1" in context
         assert "Exclusions" in context
         assert "Section 3.1" in context
@@ -134,9 +131,9 @@ class TestQueryServiceFullFlow(unittest.TestCase):
     @patch("rag_engine.embeddings.embedding_factory.get_embedder")
     @patch("rag_engine.vector_store.store_factory.get_vector_store")
     @patch("rag_engine.llm.llm_factory.get_llm")
-    @patch("sentence_transformers.CrossEncoder")
+    @patch("rag_engine.retrieval.reranker.get_reranker")
     def test_query_service_full_flow_mocked(
-        self, mock_ce_cls, mock_get_llm, mock_get_store, mock_get_emb
+        self, mock_get_reranker, mock_get_llm, mock_get_store, mock_get_emb
     ):
         """QueryService end-to-end with all external calls mocked"""
         # embedder
@@ -164,10 +161,12 @@ class TestQueryServiceFullFlow(unittest.TestCase):
         mock_llm.complete.return_value = "Flood damage is not covered."
         mock_get_llm.return_value = mock_llm
 
-        # reranker — mock CrossEncoder so it doesn't download a model
-        mock_ce = MagicMock()
-        mock_ce.predict.return_value = [0.97]
-        mock_ce_cls.return_value = mock_ce
+        # reranker — mocked so no model/API is touched
+        mock_reranker = MagicMock()
+        mock_reranker.rerank.side_effect = lambda q, results, top_k=5: [
+            {**results[0], "rerank_score": 0.97}
+        ]
+        mock_get_reranker.return_value = mock_reranker
 
         from rag_engine.services.query_service import QueryService
 

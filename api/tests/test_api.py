@@ -1,4 +1,4 @@
-"""API-layer tests: validation, auth guard, upload limits. No network or models needed."""
+"""API-layer tests: validation, auth guard, backpressure. No network or models needed."""
 
 from __future__ import annotations
 
@@ -11,26 +11,41 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.routes.ingest import router as ingest_router
+from api.errors import service_busy_handler
 from api.routes.query import router as query_router
 from rag_engine.config.settings import settings
+from rag_engine.infra.llm_guard import ServiceBusy
 
 
 class FakeQueryService:
+    busy = False
+
+    def check_capacity(self):
+        if self.busy:
+            raise ServiceBusy(retry_after=7)
+
     def query(self, question, policy_id, k):
         return {"answer": "42", "policy_id": policy_id, "source_count": 0, "sources": []}
 
-    def stream_query(self, question, policy_id, k):
-        yield "hel"
-        yield "lo"
+    def query_multi_policy(self, question, policy_ids, k_per_policy):
+        return {"answer": "cmp", "source_count": 0, "sources": []}
+
+    def prepare_stream(self, question, policy_id, k):
+        return iter(["hel", "lo"])
+
+
+@pytest.fixture(autouse=True)
+def _no_internal_key(monkeypatch):
+    # hermetic: a developer's local .env may define INTERNAL_API_KEY
+    monkeypatch.setattr(settings, "internal_api_key", "")
 
 
 @pytest.fixture()
 def client():
     app = FastAPI()
     app.state.query_service = FakeQueryService()
+    app.add_exception_handler(ServiceBusy, service_busy_handler)
     app.include_router(query_router)
-    app.include_router(ingest_router)
     return TestClient(app)
 
 
@@ -46,17 +61,33 @@ def test_stream_ok(client):
     assert r.text == "hello"
 
 
+def test_stream_returns_503_with_retry_after_when_saturated(client):
+    client.app.state.query_service.busy = True
+    r = client.post("/query/stream", json={"question": "hi", "policy_id": "abc_123"})
+    assert r.status_code == 503
+    assert r.headers["retry-after"] == "7"
+
+
+def test_multi_ok(client):
+    r = client.post("/query/multi", json={"question": "compare", "policy_ids": ["a1", "b2"]})
+    assert r.status_code == 200
+    assert r.json()["policy_id"] == "a1,b2"
+
+
 @pytest.mark.parametrize(
-    "body",
+    "path,body",
     [
-        {"question": "", "policy_id": "abc"},
-        {"question": "x" * 2001, "policy_id": "abc"},
-        {"question": "hi", "policy_id": "../etc/passwd"},
-        {"question": "hi", "policy_id": "abc", "k": 500},
+        ("/query/", {"question": "", "policy_id": "abc"}),
+        ("/query/", {"question": "x" * 2001, "policy_id": "abc"}),
+        ("/query/", {"question": "hi", "policy_id": "../etc/passwd"}),
+        ("/query/", {"question": "hi", "policy_id": "abc", "k": 500}),
+        ("/query/multi", {"question": "hi", "policy_ids": ["only-one"]}),
+        ("/query/multi", {"question": "hi", "policy_ids": ["a", "b", "c", "d", "e", "f"]}),
+        ("/query/multi", {"question": "hi", "policy_ids": ["a", "../b"]}),
     ],
 )
-def test_query_validation(client, body):
-    assert client.post("/query/", json=body).status_code == 422
+def test_validation(client, path, body):
+    assert client.post(path, json=body).status_code == 422
 
 
 def test_internal_key_enforced(client, monkeypatch):
@@ -65,41 +96,3 @@ def test_internal_key_enforced(client, monkeypatch):
     assert client.post("/query/", json=body).status_code == 401
     assert client.post("/query/", json=body, headers={"X-Internal-Key": "wrong"}).status_code == 401
     assert client.post("/query/", json=body, headers={"X-Internal-Key": "secret"}).status_code == 200
-
-
-def test_upload_rejects_non_pdf(client):
-    r = client.post(
-        "/ingest/upload",
-        files={"file": ("evil.pdf", b"not a pdf at all", "application/pdf")},
-        data={"policy_id": "abc"},
-    )
-    assert r.status_code == 400
-
-
-def test_upload_rejects_wrong_extension(client):
-    r = client.post(
-        "/ingest/upload",
-        files={"file": ("x.txt", b"%PDF-1.4", "text/plain")},
-        data={"policy_id": "abc"},
-    )
-    assert r.status_code == 400
-
-
-def test_upload_rejects_oversize(client, monkeypatch):
-    monkeypatch.setattr(settings, "max_upload_mb", 1)
-    payload = b"%PDF-" + b"0" * (2 * 1024 * 1024)
-    r = client.post(
-        "/ingest/upload",
-        files={"file": ("big.pdf", payload, "application/pdf")},
-        data={"policy_id": "abc"},
-    )
-    assert r.status_code == 413
-
-
-def test_upload_rejects_bad_policy_id(client):
-    r = client.post(
-        "/ingest/upload",
-        files={"file": ("a.pdf", b"%PDF-1.4", "application/pdf")},
-        data={"policy_id": "../../x"},
-    )
-    assert r.status_code == 422

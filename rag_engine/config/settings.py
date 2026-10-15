@@ -48,9 +48,28 @@ class Settings(BaseSettings):
     llm_provider: str = "groq"
     llm_model: str = "openai/gpt-oss-20b"
 
-    # reranker
-    reranker_provider: str = "cross_encoder"
-    reranker_model: str = "cross-encoder/ms-marco-TinyBERT-L-2-v2"
+    # reranker: "jina" (hosted API, default), "cross_encoder" (local, needs torch), "none"
+    reranker_provider: str = "jina"
+    reranker_model: str = "jina-reranker-v2-base-multilingual"
+    local_reranker_model: str = "cross-encoder/ms-marco-TinyBERT-L-2-v2"
+
+    # redis (optional) — shared cache; falls back to per-process memory when empty
+    redis_url: str = ""
+    answer_cache_ttl_seconds: int = 3600
+    embedding_cache_ttl_seconds: int = 86400
+
+    # LLM protection: cap concurrent calls and fail fast instead of piling up
+    llm_max_concurrency: int = 6
+    llm_queue_timeout_seconds: float = 20.0
+    llm_fallback_provider: str = ""  # e.g. "gemini" — used if the primary provider errors
+
+    # ingest worker
+    embedded_worker: bool = True       # run the worker loop inside the API process
+    worker_concurrency: int = 1
+    worker_poll_seconds: float = 2.0
+    worker_stale_after_minutes: int = 10
+    worker_max_attempts: int = 3
+    storage_bucket: str = "policy-pdfs"
 
     # security — shared secret the Node backend sends as X-Internal-Key.
     # When empty the API is open (dev only).

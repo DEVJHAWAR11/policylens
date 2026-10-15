@@ -27,25 +27,13 @@ class PolicyRetriever:
     def retrieve(self, query: str, policy_id: str, k: int = 8) -> list[dict]:
         """Return the top-*k* chunks for *query* scoped to *policy_id*."""
         clean_query = self._preprocessor.preprocess(query)
-        filters = self._preprocessor.extract_filters(clean_query, policy_id)
         query_embedding = self._embedder.embed_query(clean_query)
 
         results = self._store.similarity_search(
             query_embedding=query_embedding,
             k=k,
-            filter_dict=filters,
+            filter_dict={"policy_id": policy_id},
         )
-
-        if len(results) == 0:
-            logger.warning(
-                "No results for policy_id=%s, retrying without filters",
-                policy_id,
-            )
-            results = self._store.similarity_search(
-                query_embedding=query_embedding,
-                k=k,
-                filter_dict={"policy_id": policy_id},
-            )
 
         logger.info(
             "Retrieved %d chunks for query='%s'", len(results), clean_query[:50]
@@ -61,10 +49,26 @@ class PolicyRetriever:
         policy_ids: list[str],
         k_per_policy: int = 4,
     ) -> list[dict]:
-        """Retrieve across several policies and return a merged, ranked list."""
+        """Retrieve across several policies and return a merged, ranked list.
+
+        The query is embedded once and the per-policy searches run in parallel.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        clean_query = self._preprocessor.preprocess(query)
+        query_embedding = self._embedder.embed_query(clean_query)
+
+        def _search(pid: str) -> list[dict]:
+            return self._store.similarity_search(
+                query_embedding=query_embedding,
+                k=k_per_policy,
+                filter_dict={"policy_id": pid},
+            )
+
         merged: list[dict] = []
-        for pid in policy_ids:
-            merged.extend(self.retrieve(query, pid, k_per_policy))
+        with ThreadPoolExecutor(max_workers=min(len(policy_ids), 5) or 1) as pool:
+            for rows in pool.map(_search, policy_ids):
+                merged.extend(rows)
 
         merged.sort(key=lambda r: r.get("score", 0), reverse=True)
 

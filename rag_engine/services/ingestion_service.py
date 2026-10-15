@@ -47,10 +47,8 @@ class IngestionService:
         try:
             return self._ingest(pdf_path, policy_id, overwrite, status_tracker)
         except Exception:
-            status_tracker.update_status(
-                policy_id, "failed", 0, "Processing failed. Please try uploading again."
-            )
-            # don't leave half-written chunks behind
+            # the caller (worker) decides between retry and final failure;
+            # just don't leave half-written chunks behind
             try:
                 self._store.delete_policy(policy_id)
             except Exception:
@@ -67,7 +65,9 @@ class IngestionService:
                 policy_id,
                 count,
             )
-            status_tracker.update_status(policy_id, "ready", 100, "Already ingested")
+            status_tracker.update_status(
+                policy_id, "ready", 100, "Already ingested", chunk_count=count
+            )
             return {
                 "status": "skipped",
                 "policy_id": policy_id,
@@ -113,7 +113,7 @@ class IngestionService:
         )
 
         # ✅ Set ready IMMEDIATELY after chunks stored — don't wait for summary
-        status_tracker.update_status(policy_id, "ready", 100, "Ready")
+        status_tracker.update_status(policy_id, "ready", 100, "Ready", chunk_count=len(chunks))
 
         return {
             "status": "success",

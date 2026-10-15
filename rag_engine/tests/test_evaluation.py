@@ -92,14 +92,10 @@ class TestEvalQueryPreprocessingQuality(unittest.TestCase):
 
         for query, expected_category, should_have_question_mark in test_cases:
             processed = p.preprocess(query)
-            filters = p.extract_filters(processed, "EVAL-001")
 
             if should_have_question_mark:
                 assert "?" in processed, f"Missing ? in: {processed}"
-            assert "policy_id" in filters
-            print(
-                f"  '{query}' → category={filters.get('coverage_category')} ✓"
-            )
+            print(f"  '{query}' → '{processed}' ✓")
 
 
 # ====================================================================== #

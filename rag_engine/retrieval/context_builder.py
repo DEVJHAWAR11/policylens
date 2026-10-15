@@ -25,6 +25,7 @@ class ContextBuilder:
 
             block = (
                 f"--- Source {i + 1} ---\n"
+                f"Document: {metadata.get('source_file') or metadata.get('policy_id', 'Unknown')}\n"
                 f"Section: {metadata.get('section_name', 'Unknown')}\n"
                 f"Clause Type: {metadata.get('clause_type', 'Unknown')}\n"
                 f"Relevance: {score:.3f}\n\n"
