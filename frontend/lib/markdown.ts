@@ -7,7 +7,21 @@ export type Block =
   | { type: 'heading'; inline: Inline[] }
   | { type: 'para'; inline: Inline[] }
   | { type: 'list'; ordered: boolean; items: { inline: Inline[]; depth: number }[] }
+  | { type: 'table'; header: Inline[][]; align: (Align | undefined)[]; rows: Inline[][][] }
   | { type: 'rule' };
+
+export type Align = 'left' | 'center' | 'right';
+
+// "| a | b |" -> ['a', 'b']  (outer pipes optional, "\|" stays inside the cell)
+function splitRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
+  return s.split(/(?<!\\)\|/).map((c) => c.replace(/\\\|/g, '|').trim());
+}
+
+const isTableLine = (line: string) => /^\s*\|.*\|\s*$/.test(line);
+const isSeparatorRow = (cells: string[]) => cells.length > 0 && cells.every((c) => /^:?-{1,}:?$/.test(c));
 
 export function parseInline(src: string): Inline[] {
   const out: Inline[] = [];
@@ -34,9 +48,28 @@ export function parseMarkdown(src: string): Block[] {
     para = [];
   };
 
-  for (const raw of src.replace(/\r/g, '').split('\n')) {
-    const line = raw.trimEnd();
+  const lines = src.replace(/\r/g, '').split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trimEnd();
     if (!line.trim()) { flush(); continue; }
+    // GitHub-style table: header row, "|---|---|" separator, then body rows
+    if (isTableLine(line) && isSeparatorRow(splitRow(lines[i + 1] ?? ''))) {
+      flush();
+      const head = splitRow(line);
+      const align = splitRow(lines[i + 1]).map((c): Align | undefined =>
+        c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : c.startsWith(':') ? 'left' : undefined);
+      const rows: Inline[][][] = [];
+      i += 2;
+      while (i < lines.length && isTableLine(lines[i])) {
+        const cells = splitRow(lines[i]);
+        // pad / trim so every row matches the header width
+        rows.push(head.map((_, c) => parseInline(cells[c] ?? '')));
+        i++;
+      }
+      i--; // the for-loop increments again
+      blocks.push({ type: 'table', header: head.map((c) => parseInline(c)), align, rows });
+      continue;
+    }
     if (/^\s*(-{2,}|\*{3,}|_{3,})\s*$/.test(line)) { flush(); blocks.push({ type: 'rule' }); continue; }
     const h = line.match(/^\s*#{1,6}\s+(.*)$/);
     if (h) { flush(); blocks.push({ type: 'heading', inline: parseInline(h[1]) }); continue; }
@@ -63,4 +96,6 @@ export function parseMarkdown(src: string): Block[] {
 // Plain text for previews (history list, titles).
 export const stripMarkdown = (src: string) =>
   src.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\*(?!\s)(.+?)\*/g, '$1').replace(/^\s*#{1,6}\s+/gm, '')
-    .replace(/^\s*[-*•]\s+/gm, '').replace(/^\s*-{2,}\s*$/gm, '').replace(/\s+/g, ' ').trim();
+    .replace(/^\s*[-*•]\s+/gm, '').replace(/^\s*\|?[\s:|-]*-[\s:|-]*\|?\s*$/gm, '')
+    .replace(/^\s*\|(.*)\|\s*$/gm, (_, row: string) => row.replace(/\s*\|\s*/g, ' · ').trim())
+    .replace(/\s+/g, ' ').trim();

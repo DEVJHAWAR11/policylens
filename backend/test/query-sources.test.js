@@ -15,9 +15,14 @@ test('pickSources keeps page, section and clause text only', () => {
     sources: [{ section: '4.2', page_number: 12, highlight_text: 'clause', snippet: 'cl', relevance_score: 0.9, clause_type: 'x' }],
   });
   assert.deepEqual(out, {
-    sources: [{ section: '4.2', page_number: 12, highlight_text: 'clause', snippet: 'cl', relevance_score: 0.9 }],
+    sources: [{ policy_id: null, section: '4.2', page_number: 12, highlight_text: 'clause', snippet: 'cl', relevance_score: 0.9 }],
     source_count: 4,
   });
+});
+
+test('pickSources passes the policy id through for comparison citations', () => {
+  const out = pickSources({ sources: [{ policy_id: 'abc', section: 'S', page_number: 3 }] });
+  assert.equal(out.sources[0].policy_id, 'abc');
 });
 
 test('pickSources tolerates a missing sources list', () => {

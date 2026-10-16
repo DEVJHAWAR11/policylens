@@ -31,6 +31,8 @@ export interface Policy {
 }
 
 export interface Source {
+  // set on /query/multi sources so a citation knows which policy's PDF to open
+  policy_id?: string | null;
   section: string | null;
   page_number: number | null;
   highlight_text: string;

@@ -11,6 +11,7 @@ class ResponseFormatter:
         raw_answer: str,
         query: str,
         chunks_used: list[dict],
+        max_sources: int = 5,
     ) -> dict:
         """Return a structured response with answer, sources, and metadata."""
         return {
@@ -18,6 +19,8 @@ class ResponseFormatter:
             "query": query,
             "sources": [
                 {
+                    # lets a comparison citation open the right policy's PDF
+                    "policy_id": chunk["metadata"].get("policy_id"),
                     "section": chunk["metadata"].get("section_name", "Unknown"),
                     "clause_type": chunk["metadata"].get("clause_type", "Unknown"),
                     "page_number": chunk["metadata"].get("page_number"),
@@ -32,7 +35,7 @@ class ResponseFormatter:
                         else chunk["content"]
                     ),
                 }
-                for chunk in chunks_used[:5]
+                for chunk in chunks_used[:max_sources]
             ],
             "source_count": len(chunks_used),
             "policy_id": (

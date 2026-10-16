@@ -6,7 +6,50 @@ import Markdown from '@/components/ui/Markdown';
 import { fetchApi } from '@/lib/api';
 import type { Policy, Source } from '@/lib/types';
 
-export default function ComparePanel({ selected, onExit }: { selected: Policy[]; onExit: () => void }) {
+// Citations grouped under the policy they come from; each chip opens that policy's PDF at the cited page.
+function CompareSources({ sources, selected, onCite }: {
+  sources: Source[]; selected: Policy[]; onCite: (policyId: string, s: Source) => void;
+}) {
+  const groups = selected
+    .map((p) => {
+      const seen = new Set<string>();
+      const chips = sources.filter((s) => s.policy_id === p.id).filter((s) => {
+        const k = `${s.page_number}-${s.section}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      return { policy: p, chips };
+    })
+    .filter((g) => g.chips.length > 0);
+  // answers cached before sources carried a policy id: show them, but they cannot be opened
+  const untagged = sources.filter((s) => !s.policy_id || !selected.some((p) => p.id === s.policy_id));
+
+  const chip = (s: Source, policyId: string | null, key: string) => (
+    <button key={key} type="button" title={s.snippet} disabled={!policyId || !s.page_number}
+      onClick={() => policyId && onCite(policyId, s)}
+      className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 font-mono text-[11px] text-muted transition-colors hover:border-gold/60 hover:bg-gold/10 hover:text-gold-bright disabled:cursor-default disabled:hover:border-line disabled:hover:bg-transparent disabled:hover:text-muted">
+      <Link2 size={11} className="shrink-0" aria-hidden />
+      <span className="truncate">{s.section && s.section !== 'Unknown' ? `${s.section.slice(0, 32)} · ` : ''}{s.page_number ? `p.${s.page_number}` : 'page n/a'}</span>
+    </button>
+  );
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-line pt-3">
+      {groups.map(({ policy, chips }) => (
+        <div key={policy.id}>
+          <p className="mb-1.5 truncate text-[12px] text-cream/80">{policy.name}</p>
+          <div className="flex flex-wrap gap-2">{chips.map((s, i) => chip(s, policy.id, `${policy.id}-${i}`))}</div>
+        </div>
+      ))}
+      {untagged.length > 0 && <div className="flex flex-wrap gap-2">{untagged.map((s, i) => chip(s, null, `u-${i}`))}</div>}
+    </div>
+  );
+}
+
+export default function ComparePanel({
+  selected, onExit, onCite,
+}: { selected: Policy[]; onExit: () => void; onCite: (policyId: string, s: Source) => void }) {
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState<{ q: string; text: string; sources: Source[] } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,15 +95,7 @@ export default function ComparePanel({ selected, onExit }: { selected: Policy[];
           <div className="mt-6">
             <p className="text-[13px] text-muted">Q · {answer.q}</p>
             <div className="mt-2 rounded-2xl border border-line bg-inset p-4 text-[14px] leading-relaxed text-cream/90"><Markdown text={answer.text} /></div>
-            {answer.sources.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {answer.sources.map((s, i) => (
-                  <span key={i} title={s.snippet} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 font-mono text-[11px] text-muted">
-                    <Link2 size={11} aria-hidden />{s.section && s.section !== 'Unknown' ? `${s.section.slice(0, 32)} · ` : ''}{s.page_number ? `p.${s.page_number}` : ''}
-                  </span>
-                ))}
-              </div>
-            )}
+            {answer.sources.length > 0 && <CompareSources sources={answer.sources} selected={selected} onCite={onCite} />}
           </div>
         )}
         {!answer && !loading && enough && (

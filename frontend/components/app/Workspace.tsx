@@ -15,6 +15,13 @@ import SummaryPanel from './SummaryPanel';
 import { useChat } from './useChat';
 import { usePolicies } from './usePolicies';
 
+const PANEL_KEY = 'policylens:panel-width';
+const PANEL_MIN = 340;
+const PANEL_DEFAULT = 420;
+// keep at least ~380px for the PDF viewer next to the 300px sidebar
+const panelMax = () => (typeof window === 'undefined' ? 760 : Math.max(PANEL_MIN, Math.min(900, window.innerWidth - 300 - 380)));
+const clampPanel = (w: number) => Math.round(Math.min(panelMax(), Math.max(PANEL_MIN, w)));
+
 type RightTab = 'ask' | 'summary' | 'history';
 type MobilePane = 'docs' | 'viewer' | 'panel';
 
@@ -75,6 +82,47 @@ export default function Workspace() {
     setPane('viewer');
   };
 
+  // A comparison citation: open that policy's PDF in the viewer without leaving compare mode.
+  const onCiteCompare = (policyId: string, s: Source) => {
+    if (!s.page_number) return;
+    setActiveId(policyId);
+    setFocus({ page: s.page_number, text: s.highlight_text || s.snippet, nonce: Date.now() });
+    setPane('viewer');
+  };
+
+  // Drag the divider to resize the right-hand panel (desktop). Width is remembered per browser.
+  const [panelW, setPanelW] = useState(PANEL_DEFAULT);
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(PANEL_KEY));
+      if (saved) setPanelW(clampPanel(saved)); // eslint-disable-line react-hooks/set-state-in-effect -- restore saved width
+    } catch { /* storage unavailable: keep the default */ }
+  }, []);
+  const savePanelW = (w: number) => { try { localStorage.setItem(PANEL_KEY, String(w)); } catch { /* ignore */ } };
+  const onDividerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(true);
+  };
+  const onDividerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragging) setPanelW(clampPanel(window.innerWidth - e.clientX));
+  };
+  const onDividerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging) return;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    setDragging(false);
+    savePanelW(clampPanel(window.innerWidth - e.clientX));
+  };
+  const onDividerKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = e.shiftKey ? 80 : 24;
+    const next = e.key === 'ArrowLeft' ? panelW + step : e.key === 'ArrowRight' ? panelW - step : e.key === 'Home' ? PANEL_DEFAULT : null;
+    if (next === null) return;
+    e.preventDefault();
+    const w = clampPanel(next);
+    setPanelW(w); savePanelW(w);
+  };
+
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     setDeleting(true); setDeleteError('');
@@ -103,7 +151,7 @@ export default function Workspace() {
   const tabs: [RightTab, string][] = [['ask', 'Ask'], ['summary', 'Summary'], ['history', 'History']];
 
   const rightPanel = compareMode ? (
-    <ComparePanel selected={selectedForCompare} onExit={() => { setCompareMode(false); setCompareIds([]); }} />
+    <ComparePanel selected={selectedForCompare} onExit={() => { setCompareMode(false); setCompareIds([]); }} onCite={onCiteCompare} />
   ) : (
     <div className="flex h-full min-h-0 flex-col">
       <div role="tablist" aria-label="Panel" className="flex gap-1 border-b border-line px-3 pt-2">
@@ -129,7 +177,8 @@ export default function Workspace() {
   );
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-bg lg:grid lg:grid-cols-[300px_minmax(0,1fr)_420px]">
+    <div className={`flex h-[100dvh] flex-col bg-bg lg:grid lg:grid-cols-[300px_minmax(0,1fr)_var(--panel-w)] ${dragging ? 'select-none lg:cursor-col-resize' : ''}`}
+      style={{ '--panel-w': `${panelW}px` } as React.CSSProperties}>
       <div className={`min-h-0 flex-1 border-line lg:block lg:border-r ${pane === 'docs' ? 'block' : 'hidden'}`}>
         <Sidebar
           policies={policies} loading={loading} error={error} onReload={reload}
@@ -144,7 +193,16 @@ export default function Workspace() {
       <main className={`min-h-0 flex-1 bg-viewer lg:block ${pane === 'viewer' ? 'block' : 'hidden'}`}>
         <PdfViewer policyId={active?.status === 'ready' ? active.id : null} policyName={active?.name} focus={focus} />
       </main>
-      <div className={`min-h-0 flex-1 border-line bg-raised/60 lg:block lg:border-l ${pane === 'panel' ? 'block' : 'hidden'}`}>
+      <div className={`relative min-h-0 flex-1 border-line bg-raised/60 lg:block lg:border-l ${pane === 'panel' ? 'block' : 'hidden'}`}>
+        {/* drag handle on the panel's left edge (desktop only) */}
+        <div role="separator" aria-orientation="vertical" aria-label="Resize panel" tabIndex={0}
+          aria-valuemin={PANEL_MIN} aria-valuemax={panelMax()} aria-valuenow={panelW}
+          onPointerDown={onDividerDown} onPointerMove={onDividerMove} onPointerUp={onDividerUp} onPointerCancel={onDividerUp}
+          onKeyDown={onDividerKey} onDoubleClick={() => { setPanelW(PANEL_DEFAULT); savePanelW(PANEL_DEFAULT); }}
+          title="Drag to resize · double-click to reset"
+          className="group absolute inset-y-0 -left-1.5 z-20 hidden w-3 cursor-col-resize touch-none lg:block">
+          <span className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors group-hover:w-0.5 group-hover:bg-gold/70 group-focus-visible:bg-gold ${dragging ? 'w-0.5 bg-gold' : 'bg-transparent'}`} />
+        </div>
         {rightPanel}
       </div>
 

@@ -225,7 +225,10 @@ class QueryService:
 
         context = self._context_builder.build(reranked, max_tokens=4500)
         prompt = build_query_prompt(question, context, f"Comparing {len(ids)} policies", multi=True)
-        result = self._formatter.format_answer(self._complete(prompt), question, reranked)
+        # `reranked` is grouped by policy, so a flat top-5 would cite only the first policy
+        result = self._formatter.format_answer(
+            self._complete(prompt), question, reranked, max_sources=len(reranked)
+        )
 
         if result["answer"]:
             cache.set_json(key, result, settings.answer_cache_ttl_seconds)

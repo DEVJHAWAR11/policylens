@@ -16,6 +16,23 @@ describe('parseMarkdown', () => {
     expect(parseInline('a <b>x</b> **y**')).toEqual([{ text: 'a <b>x</b> ' }, { text: 'y', bold: true }]);
   });
 
+  it('parses a pipe table instead of leaving it as one paragraph', () => {
+    const md = 'Intro\n\n| Feature | What the policy says | Source |\n|---|:--:|--:|\n| **Policy Term** | “term of the Policy” | Part B, clause 3.1 |\n| Grace period | Not applicable |\n\nAfter';
+    const blocks = parseMarkdown(md);
+    expect(blocks.map((b) => b.type)).toEqual(['para', 'table', 'para']);
+    const t = blocks[1] as Extract<(typeof blocks)[number], { type: 'table' }>;
+    expect(t.header).toHaveLength(3);
+    expect(t.align).toEqual([undefined, 'center', 'right']);
+    expect(t.rows).toHaveLength(2);
+    expect(t.rows[0][0]).toEqual([{ text: 'Policy Term', bold: true }]);
+    expect(t.rows[1]).toHaveLength(3); // short row padded to the header width
+  });
+
+  it('keeps an escaped pipe inside its cell', () => {
+    const t = parseMarkdown('| a | b |\n|---|---|\n| x \\| y | z |')[0] as Extract<ReturnType<typeof parseMarkdown>[number], { type: 'table' }>;
+    expect(t.rows[0][0]).toEqual([{ text: 'x | y' }]);
+  });
+
   it('strips markdown for previews', () => {
     expect(stripMarkdown('**Free Look**\n- **Duration:** 15 days')).toBe('Free Look Duration: 15 days');
   });

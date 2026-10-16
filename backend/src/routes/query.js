@@ -13,6 +13,7 @@ export function pickSources(data) {
   const sources = Array.isArray(data?.sources) ? data.sources : [];
   return {
     sources: sources.map((s) => ({
+      policy_id: s.policy_id ?? null,
       section: s.section ?? null,
       page_number: s.page_number ?? null,
       highlight_text: s.highlight_text ?? '',

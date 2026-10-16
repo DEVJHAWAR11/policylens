@@ -34,13 +34,21 @@ export default function PdfViewer({ policyId, policyName, focus }: { policyId: s
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
 
-  // container width → render scale
+  // container width → render scale. The first measurement is applied at once; later ones (e.g. while
+  // the side panel is being dragged) wait until the width settles, so the page is not redrawn on every pixel.
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setWidth(Math.floor(e.contentRect.width)));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let first = true;
+    const ro = new ResizeObserver(([e]) => {
+      const w = Math.floor(e.contentRect.width);
+      clearTimeout(timer);
+      if (first) { first = false; setWidth(w); return; }
+      timer = setTimeout(() => setWidth(w), 120);
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { clearTimeout(timer); ro.disconnect(); };
   }, []);
 
   // load the document (signed URL from the API, valid for an hour)
