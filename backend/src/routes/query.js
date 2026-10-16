@@ -8,6 +8,21 @@ import { callPython, sendUpstreamError } from '../utils/resilience.js';
 
 const router = express.Router();
 
+// Only what the UI needs to show citation chips and highlight the clause in the PDF.
+export function pickSources(data) {
+  const sources = Array.isArray(data?.sources) ? data.sources : [];
+  return {
+    sources: sources.map((s) => ({
+      section: s.section ?? null,
+      page_number: s.page_number ?? null,
+      highlight_text: s.highlight_text ?? '',
+      snippet: s.snippet ?? '',
+      relevance_score: s.relevance_score ?? null,
+    })),
+    source_count: data?.source_count ?? sources.length,
+  };
+}
+
 const MAX_QUESTION_LENGTH = 2000;
 const STREAM_IDLE_TIMEOUT_MS = 45_000; // no tokens for this long => treat the stream as dead
 const PYTHON_ERROR_TAIL = /Error: something went wrong while generating the answer\.$/;
@@ -80,6 +95,22 @@ router.post('/query', authMiddleware, queryLimiter, async (req, res) => {
     }); // not awaited: persisting history must not delay the answer
 
     res.json(data);
+  } catch (err) {
+    sendUpstreamError(res, err);
+  }
+});
+
+// Sources (page + clause text) for an answer that was just streamed. /query/stream sends
+// plain text only; the RAG service caches the full result (with sources) under the same key,
+// so this normally costs no LLM call. Not saved to history: the stream already saved the answer.
+router.post('/query/sources', authMiddleware, queryLimiter, async (req, res) => {
+  const payload = await validateQuery(req, res);
+  if (!payload) return;
+
+  try {
+    const { data } = await callPython(() =>
+      pythonApi.post('/query/', payload, { timeout: 90_000 }));
+    res.json(pickSources(data));
   } catch (err) {
     sendUpstreamError(res, err);
   }
