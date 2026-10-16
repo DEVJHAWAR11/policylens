@@ -12,7 +12,7 @@ Two modes (both are per-policy and safe to interrupt; the next run resumes):
   python -m rag_engine.reembed --mode full [--policy ID ...]
       download each PDF from Supabase Storage and re-ingest it (new structure-aware
       chunking + adapters). The policy's old chunks are deleted when its re-ingest starts,
-      so run this when the policy is not being queried; a failed policy can simply be re-run.
+      but only after the new chunks are fully built and embedded, so a failure leaves them as they were.
 
 Only touches policies that are not already current unless --force is given.
 """
@@ -55,12 +55,15 @@ def reembed_vectors(store, embedder, pid: str) -> int:
     return len(updates)
 
 
-def reingest_full(store, pid: str, storage_path: str, filename: str) -> int:
+def reingest_full(store, embedder, pid: str, storage_path: str, filename: str) -> int:
+    """Parse, chunk and embed first; only then swap the stored chunks, so a failure
+    anywhere before the swap leaves the policy's existing chunks untouched."""
     import os
     import re
     import tempfile
 
-    from rag_engine.services.ingestion_service import IngestionService
+    from rag_engine.ingestion.pipeline import IngestionPipeline
+    from rag_engine.retrieval.lexical import lexical_cache
 
     pdf_bytes = store._client.storage.from_(settings.storage_bucket).download(storage_path)
     safe = re.sub(r"[^A-Za-z0-9._ -]", "_", filename or "policy.pdf")  # chunks cite this name
@@ -68,8 +71,18 @@ def reingest_full(store, pid: str, storage_path: str, filename: str) -> int:
         path = os.path.join(tmp, safe)
         with open(path, "wb") as f:
             f.write(pdf_bytes)
-        result = IngestionService().ingest(path, pid, overwrite=True)
-    return int(result.get("chunks", 0))
+        chunks = IngestionPipeline().run(path, pid)
+    if not chunks:
+        raise ValueError("no text extracted")
+    texts = [t for t, _ in chunks]
+    metas = [m.to_supabase_dict() for _, m in chunks]
+    for m in metas:
+        m["embed_task"] = EMBED_TASK_ADAPTERS
+    vectors = embedder.embed_documents(texts)
+    store.delete_policy(pid)  # the only destructive step; everything above succeeded
+    store.add_chunks(list(zip(texts, vectors, metas)))
+    lexical_cache.invalidate(pid)
+    return len(texts)
 
 
 def main() -> int:
@@ -98,7 +111,7 @@ def main() -> int:
         if r["status"] != "ready" or (current and not a.force):
             continue
         try:
-            n = reembed_vectors(store, embedder, pid) if a.mode == "vectors" else reingest_full(store, pid, r["storage_path"], r["filename"])
+            n = reembed_vectors(store, embedder, pid) if a.mode == "vectors" else reingest_full(store, embedder, pid, r["storage_path"], r["filename"])
             print(f"OK   {pid}  {n} chunks  {r.get('filename')}")
         except Exception as exc:  # keep going; the policy keeps working on its old vectors
             print(f"FAIL {pid}  {type(exc).__name__}: {exc}")
