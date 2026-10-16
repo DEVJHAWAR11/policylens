@@ -77,14 +77,14 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
 
-  # ── React frontend (static, free, never sleeps) ───────────────────────────
+  # ── Next.js frontend (static export, free, never sleeps) ───────────────────────────
   - type: web
     name: policylens-devj-web
     runtime: static
     branch: feat/scalable-architecture
     rootDir: frontend
     buildCommand: npm ci && npm run build
-    staticPublishPath: dist
+    staticPublishPath: out
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
