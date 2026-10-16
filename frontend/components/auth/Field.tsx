@@ -26,7 +26,7 @@ export function Field({
           inputMode={inputMode}
           maxLength={maxLength}
           autoFocus={autoFocus}
-          className="w-full rounded-xl border border-line bg-black/30 px-4 py-3 text-[15px] text-cream placeholder:text-muted/60 outline-none transition-colors focus:border-gold/70 focus:bg-black/40"
+          className="w-full rounded-xl border border-line bg-inset px-4 py-3 text-[15px] text-cream placeholder:text-muted/60 outline-none transition-colors focus:border-gold/70 focus:bg-inset"
         />
         {isPw && (
           <button type="button" onClick={() => setShow((v) => !v)} aria-label={show ? 'Hide password' : 'Show password'}
@@ -41,7 +41,7 @@ export function Field({
 
 export function FormError({ message }: { message: string }) {
   if (!message) return null;
-  return <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-2.5 text-[13.5px] text-[#f3c3b2]">{message}</p>;
+  return <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-2.5 text-[13.5px] text-danger-ink">{message}</p>;
 }
 
 export function SubmitButton({ loading, children }: { loading: boolean; children: React.ReactNode }) {

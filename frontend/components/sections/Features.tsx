@@ -30,7 +30,7 @@ export default function Features() {
                   <p className={`mt-2 leading-relaxed text-muted ${big ? 'max-w-md text-[16px]' : 'text-[14.5px]'}`}>{body}</p>
                 </div>
                 {big && (
-                  <div className="mt-8 rounded-2xl border border-line bg-black/25 p-4 text-[14px] text-cream/85">
+                  <div className="mt-8 rounded-2xl border border-line bg-inset p-4 text-[14px] text-cream/85">
                     <span className="text-muted">You · </span>Is ambulance cost covered?
                     <div className="mt-2 border-t border-line pt-2">Yes — up to ₹2,000 per hospitalisation. <span className="font-mono text-[11px] text-gold-bright">[Section 3.6 · p.9]</span></div>
                   </div>

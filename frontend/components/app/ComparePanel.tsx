@@ -47,11 +47,11 @@ export default function ComparePanel({ selected, onExit }: { selected: Policy[];
         {!enough && <p className="mt-4 text-[13.5px] text-muted">Select at least two ready policies in the list on the left.</p>}
 
         {loading && <div className="mt-6 space-y-2" aria-label="Comparing"><div className="h-3 rounded shimmer" /><div className="h-3 w-5/6 rounded shimmer" /><div className="h-3 w-2/3 rounded shimmer" /></div>}
-        {error && <p role="alert" className="mt-5 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-[#f3c3b2]">{error}</p>}
+        {error && <p role="alert" className="mt-5 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-[13px] text-danger-ink">{error}</p>}
         {answer && (
           <div className="mt-6">
             <p className="text-[13px] text-muted">Q · {answer.q}</p>
-            <div className="mt-2 rounded-2xl border border-line bg-black/25 p-4 text-[14px] leading-relaxed text-cream/90"><Markdown text={answer.text} /></div>
+            <div className="mt-2 rounded-2xl border border-line bg-inset p-4 text-[14px] leading-relaxed text-cream/90"><Markdown text={answer.text} /></div>
             {answer.sources.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {answer.sources.map((s, i) => (
@@ -71,7 +71,7 @@ export default function ComparePanel({ selected, onExit }: { selected: Policy[];
         )}
       </div>
       <form onSubmit={ask} className="border-t border-line p-3">
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-black/30 p-2 focus-within:border-gold/60">
+        <div className="flex items-end gap-2 rounded-2xl border border-line bg-inset p-2 focus-within:border-gold/60">
           <label htmlFor="compare-q" className="sr-only">Compare question</label>
           <input id="compare-q" value={question} onChange={(e) => setQuestion(e.target.value)} disabled={!enough}
             placeholder={enough ? 'Ask across the selected policies…' : 'Select 2–5 policies first'}

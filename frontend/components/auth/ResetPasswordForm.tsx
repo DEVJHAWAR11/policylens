@@ -58,7 +58,7 @@ export default function ResetPasswordForm({ onDone }: { onDone: () => void }) {
   return (
     <div>
       <div className="mb-6 flex gap-1.5" aria-hidden>
-        {[0, 1, 2].map((i) => <span key={i} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${i < stepIdx || step === 'done' ? 'bg-gold' : i === stepIdx ? 'bg-gold/50' : 'bg-white/10'}`} />)}
+        {[0, 1, 2].map((i) => <span key={i} className={`h-1 flex-1 rounded-full transition-colors duration-500 ${i < stepIdx || step === 'done' ? 'bg-gold' : i === stepIdx ? 'bg-gold/50' : 'bg-tint-strong'}`} />)}
       </div>
       {step === 'email' && (
         <form onSubmit={sendCode} className="space-y-4" noValidate>
@@ -85,7 +85,7 @@ export default function ResetPasswordForm({ onDone }: { onDone: () => void }) {
         </form>
       )}
       {step === 'done' && (
-        <p role="status" className="flex items-center gap-3 rounded-xl border border-ok/40 bg-ok/10 px-4 py-3 text-[14px] text-[#d6ecd2]">
+        <p role="status" className="flex items-center gap-3 rounded-xl border border-ok/40 bg-ok/10 px-4 py-3 text-[14px] text-ok-ink">
           <CheckCircle2 size={18} aria-hidden /> Password updated. Taking you back to sign in…
         </p>
       )}

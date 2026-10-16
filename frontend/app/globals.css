@@ -1,22 +1,97 @@
 @import "tailwindcss";
 
 /* ── Design tokens ─────────────────────────────────────────────────────────
-   Gold on --bg is 9.4:1, --muted on --bg is 7.1:1, --bg on --gold (button text) is 9.4:1. */
-:root {
+   Two themes on <html data-theme>. Contrast (body text sizes):
+   dark  — gold 9.4:1, muted 7.1:1 on --bg;  light — gold 5.2:1, muted 5.8:1, ink 14:1 on --bg. */
+:root, :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0b0907;
   --bg-raised: #14100c;
   --bg-glass: rgba(24, 19, 14, 0.55);
   --gold: #d9ae6b;
   --gold-bright: #f0cf8f;
   --gold-deep: #a9793a;
-  --cream: #f4ebdd;
+  --grad-a: #f0cf8f; --grad-b: #d9ae6b; --grad-c: #a9793a;
+  --cream: #f4ebdd;            /* primary ink (named for the dark theme) */
   --muted: #a89b87;
   --line: rgba(217, 174, 107, 0.22);
   --highlight: #f3d9a4;
-  --danger: #e48a6d;
-  --ok: #9fc89a;
+  --danger: #e48a6d;  --danger-ink: #f3c3b2;
+  --ok: #9fc89a;      --ok-ink: #d6ecd2;
+  --inset: rgba(0, 0, 0, 0.26);
+  --tint: rgba(255, 255, 255, 0.05);
+  --tint-strong: rgba(255, 255, 255, 0.1);
+  --viewer: #0e0b08;
+  --glass-a: rgba(40, 31, 22, 0.62); --glass-b: rgba(20, 16, 12, 0.55);
+  --glass-hi: rgba(244, 235, 221, 0.08);
+  --shadow: rgba(0, 0, 0, 0.75);
+  --panel: rgba(20, 16, 12, 0.72);
+  --ghost-bg: rgba(20, 16, 12, 0.35); --ghost-border: rgba(244, 235, 221, 0.22);
+  --scrim: 11, 9, 7;           /* rgb triplet for the hero legibility gradients */
+  --vignette: rgba(0, 0, 0, 0.7);
+  --glow: rgba(232, 179, 106, 0.25);
+  --rays: 240, 194, 126;
+  --dust: 250, 222, 170;
   --grain-opacity: 0.04;
+  /* hero scene — golden hour */
+  --s-base-0: #0b0907; --s-base-1: #1a130c;
+  --s-sky-0: #4a3420; --s-sky-1: #b9874d; --s-sky-2: #f0c27e; --s-sky-3: #8a5d31; --s-sun: #ffe2a8;
+  --s-dome: #5a3a20; --s-dome-win: #7a5130; --s-trees: #2c1d10;
+  --s-wall-0: #0c0806; --s-wall-1: #1a120b; --s-wall-2: #24180e; --s-arch: #3a2817; --s-rim: #d9ae6b;
+  --s-col-0: #0d0907; --s-col-1: #21170f; --s-col-2: #3a2918; --s-col-3: #8a6436; --s-col-4: #c9975a;
+  --s-cap-a: #1c140d; --s-cap-b: #16100b; --s-cap-hi: #a77a43; --s-flute: #000000; --s-flute-lit: #d9ae6b;
+  --s-base-a: #1a120c; --s-base-b: #120c08;
+  --s-desk-0: #2a1c11; --s-desk-1: #140d08; --s-desk-2: #070504; --s-floor: #000000;
+  --s-l1a: #4a2c19; --s-l1b: #24140b; --s-l2a: #3b2414; --s-l2b: #1c0f08; --s-l3a: #2f1d11; --s-l3b: #150b06;
+  --s-book-text: #d9ae6b; --s-paper-a: #d9ccb2; --s-paper-b: #8f8268;
+  --s-lamp: rgba(240, 190, 110, 0.35);
 }
+
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5eee2;
+  --bg-raised: #fffaf2;
+  --bg-glass: rgba(255, 250, 242, 0.6);
+  --gold: #8a5a1f;
+  --gold-bright: #74491a;
+  --gold-deep: #5c3912;
+  --grad-a: #c2924c; --grad-b: #8a5a1f; --grad-c: #5c3912;
+  --cream: #2b1f13;
+  --muted: #6a5843;
+  --line: rgba(138, 90, 31, 0.22);
+  --highlight: #f3d9a4;
+  --danger: #b5482a;  --danger-ink: #8e2f15;
+  --ok: #3f7a3a;      --ok-ink: #2c5a28;
+  --inset: rgba(138, 100, 50, 0.07);
+  --tint: rgba(90, 60, 20, 0.06);
+  --tint-strong: rgba(90, 60, 20, 0.1);
+  --viewer: #e9e0d0;
+  --glass-a: rgba(255, 251, 244, 0.78); --glass-b: rgba(250, 243, 231, 0.66);
+  --glass-hi: rgba(255, 255, 255, 0.9);
+  --shadow: rgba(92, 62, 25, 0.28);
+  --panel: rgba(255, 251, 244, 0.82);
+  --ghost-bg: rgba(255, 251, 244, 0.55); --ghost-border: rgba(43, 31, 19, 0.2);
+  --scrim: 245, 238, 226;
+  --vignette: rgba(120, 84, 40, 0.22);
+  --glow: rgba(255, 214, 150, 0.55);
+  --rays: 255, 226, 170;
+  --dust: 176, 128, 60;
+  --grain-opacity: 0.03;
+  /* hero scene — morning light */
+  --s-base-0: #f7efe1; --s-base-1: #ecdfc8;
+  --s-sky-0: #a9c8dc; --s-sky-1: #d6e3e6; --s-sky-2: #f7e6c2; --s-sky-3: #e2c48f; --s-sun: #fff7de;
+  --s-dome: #93a0a8; --s-dome-win: #b6bfc3; --s-trees: #8b987a;
+  --s-wall-0: #c9b591; --s-wall-1: #dccaa8; --s-wall-2: #e9dabd; --s-arch: #c6ae86; --s-rim: #fffaf0;
+  --s-col-0: #b3a07f; --s-col-1: #d4c3a3; --s-col-2: #e6d9bf; --s-col-3: #f4ebda; --s-col-4: #fffbf2;
+  --s-cap-a: #cdbb9b; --s-cap-b: #bea883; --s-cap-hi: #ffffff; --s-flute: #8f7a55; --s-flute-lit: #ffffff;
+  --s-base-a: #c4b090; --s-base-b: #b09a76;
+  --s-desk-0: #b0855a; --s-desk-1: #8d6542; --s-desk-2: #5f4027; --s-floor: #4a311c;
+  --s-l1a: #8a5532; --s-l1b: #5e3720; --s-l2a: #6f4527; --s-l2b: #4c2c17; --s-l3a: #5f3b22; --s-l3b: #3e2412;
+  --s-book-text: #f3d9a4; --s-paper-a: #fffaf0; --s-paper-b: #e0d2b6;
+  --s-lamp: rgba(255, 205, 130, 0.3);
+}
+
 
 @theme inline {
   --color-bg: var(--bg);
@@ -30,14 +105,20 @@
   --color-line: var(--line);
   --color-highlight: var(--highlight);
   --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
   --color-ok: var(--ok);
+  --color-ok-ink: var(--ok-ink);
+  --color-inset: var(--inset);
+  --color-tint: var(--tint);
+  --color-tint-strong: var(--tint-strong);
+  --color-viewer: var(--viewer);
   --font-display: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
   --font-sans: var(--font-manrope), "Manrope", system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, monospace;
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-html { background: var(--bg); color-scheme: dark; }
+html { background: var(--bg); }
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 .lenis.lenis-stopped { overflow: hidden; }
@@ -54,25 +135,41 @@ body {
 
 :focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 3px; border-radius: 6px; }
 
+/* ── Theme switch ──────────────────────────────────────────────────────────
+   With the View Transitions API the new theme is revealed as a growing circle from the
+   toggle (see ThemeToggle). Without it, colours cross-fade via .theme-fade. */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+html.theme-fade, html.theme-fade *, html.theme-fade *::before, html.theme-fade *::after {
+  transition: background-color 0.7s ease, color 0.7s ease, border-color 0.7s ease, fill 0.7s ease,
+    stop-color 0.7s ease, box-shadow 0.7s ease, opacity 0.7s ease !important;
+}
+
+/* Per-theme artwork (HeroScene imageSrc={{ dark, light }}): both render, one is shown. */
+.theme-dark-only, .theme-light-only { transition: opacity 0.7s ease; }
+:root[data-theme="light"] .theme-dark-only { opacity: 0; }
+:root:not([data-theme="light"]) .theme-light-only { opacity: 0; }
+
 /* ── Surfaces ───────────────────────────────────────────────────────────── */
 .glass {
-  background: linear-gradient(180deg, rgba(40, 31, 22, 0.62), rgba(20, 16, 12, 0.55));
+  background: linear-gradient(180deg, var(--glass-a), var(--glass-b));
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
   border: 1px solid var(--line);
   box-shadow:
-    inset 0 1px 0 rgba(244, 235, 221, 0.08),
-    0 30px 80px -20px rgba(0, 0, 0, 0.75),
-    0 8px 24px -8px rgba(0, 0, 0, 0.5);
+    inset 0 1px 0 var(--glass-hi),
+    0 30px 80px -20px var(--shadow),
+    0 8px 24px -8px var(--shadow);
 }
 .panel {
-  background: rgba(20, 16, 12, 0.72);
+  background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: inset 0 1px 0 rgba(244, 235, 221, 0.05);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
 }
 .hairline { height: 1px; background: linear-gradient(90deg, transparent, var(--gold) 20%, var(--gold) 80%, transparent); opacity: 0.45; }
 .text-gold-grad {
-  background: linear-gradient(180deg, var(--gold-bright) 0%, var(--gold) 55%, var(--gold-deep) 100%);
+  background: linear-gradient(180deg, var(--grad-a) 0%, var(--grad-b) 55%, var(--grad-c) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 
@@ -82,7 +179,7 @@ body {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
   border-radius: 999px; padding: 0.85rem 1.6rem;
   font-weight: 600; font-size: 0.95rem; color: #1a130c;
-  background: linear-gradient(180deg, var(--gold-bright), var(--gold) 60%, var(--gold-deep));
+  background: linear-gradient(180deg, #f0cf8f, #d9ae6b 60%, #a9793a);
   box-shadow: inset 0 1px 0 rgba(255, 245, 225, 0.65), inset 0 -2px 6px rgba(120, 80, 30, 0.35),
     0 10px 30px -10px rgba(217, 174, 107, 0.55);
   transition: transform 0.4s var(--ease-out-expo), box-shadow 0.4s var(--ease-out-expo), filter 0.3s;
@@ -99,11 +196,11 @@ body {
 .btn-ghost {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
   border-radius: 999px; padding: 0.85rem 1.4rem; font-weight: 500; font-size: 0.95rem;
-  color: var(--cream); border: 1px solid rgba(244, 235, 221, 0.22);
-  background: rgba(20, 16, 12, 0.35); backdrop-filter: blur(8px);
+  color: var(--cream); border: 1px solid var(--ghost-border);
+  background: var(--ghost-bg); backdrop-filter: blur(8px);
   transition: border-color 0.3s, background 0.3s, color 0.3s;
 }
-.btn-ghost:hover { border-color: var(--gold); color: var(--gold-bright); background: rgba(40, 30, 20, 0.5); }
+.btn-ghost:hover { border-color: var(--gold); color: var(--gold-bright); background: var(--tint-strong); }
 
 .chip {
   display: inline-flex; align-items: center; gap: 0.4rem; border-radius: 999px;
@@ -122,7 +219,7 @@ body {
   0% { transform: translate(0, 0); } 20% { transform: translate(-3%, 2%); } 40% { transform: translate(2%, -3%); }
   60% { transform: translate(-2%, -1%); } 80% { transform: translate(3%, 3%); } 100% { transform: translate(0, 0); }
 }
-.vignette { pointer-events: none; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.7) 100%); }
+.vignette { pointer-events: none; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 55%, var(--vignette) 100%); }
 
 /* Thinking shimmer + skeletons */
 .shimmer {

@@ -141,7 +141,7 @@ export default function Workspace() {
           userName={userName} onSignOut={signOut}
         />
       </div>
-      <main className={`min-h-0 flex-1 bg-[#0e0b08] lg:block ${pane === 'viewer' ? 'block' : 'hidden'}`}>
+      <main className={`min-h-0 flex-1 bg-viewer lg:block ${pane === 'viewer' ? 'block' : 'hidden'}`}>
         <PdfViewer policyId={active?.status === 'ready' ? active.id : null} policyName={active?.name} focus={focus} />
       </main>
       <div className={`min-h-0 flex-1 border-line bg-raised/60 lg:block lg:border-l ${pane === 'panel' ? 'block' : 'hidden'}`}>

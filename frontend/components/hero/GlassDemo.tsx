@@ -72,10 +72,10 @@ function AskView({ t }: { t: number }) {
     <div className="grid h-full grid-cols-1 gap-3 md:grid-cols-[1.15fr_1fr]">
       <PdfPage highlight={lit} className="hidden md:flex" />
       <div className="flex min-h-[300px] flex-col gap-3">
-        <div className="rounded-xl border border-line bg-black/25 px-3 py-2.5 text-[12.5px] text-cream">
+        <div className="rounded-xl border border-line bg-inset px-3 py-2.5 text-[12.5px] text-cream">
           {typed}<span className="ml-0.5 inline-block h-3.5 w-px translate-y-0.5 animate-pulse bg-gold" aria-hidden />
         </div>
-        <div className="rounded-xl border border-line bg-black/30 p-3.5">
+        <div className="rounded-xl border border-line bg-inset p-3.5">
           <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-gold">
             <CheckCircle2 size={13} aria-hidden /> Answer
           </div>
@@ -88,7 +88,7 @@ function AskView({ t }: { t: number }) {
           )}
           <div className="mt-3 border-t border-line pt-2.5"><SourceChip lit={lit} /></div>
         </div>
-        <div className="rounded-xl border border-line bg-black/20 p-3">
+        <div className="rounded-xl border border-line bg-inset p-3">
           <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-cream/80">
             Related questions <ComingSoon />
           </div>
@@ -118,7 +118,7 @@ function SummaryView() {
         ['Free-look period', '15 days to return it for a full refund'],
         ['Key exclusion', 'Cosmetic and experimental treatment'],
       ].map(([k, v]) => (
-        <div key={k} className="rounded-xl border border-line bg-black/25 p-3">
+        <div key={k} className="rounded-xl border border-line bg-inset p-3">
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-gold">{k}</div>
           <div className="mt-1 text-cream/90">{v}</div>
         </div>
@@ -131,7 +131,7 @@ function CompareView() {
   return (
     <div className="grid gap-3 text-[12.5px] md:grid-cols-2">
       {[['Health Shield', '36-month wait · Section 4.2, p.12'], ['CarePlus Gold', '24-month wait · Clause 7.1, p.9']].map(([n, v]) => (
-        <div key={n} className="rounded-xl border border-line bg-black/25 p-3">
+        <div key={n} className="rounded-xl border border-line bg-inset p-3">
           <div className="font-display text-base text-cream">{n}</div>
           <div className="mt-1 text-muted">Pre-existing diseases</div>
           <div className="mt-2 font-mono text-[11px] text-gold-bright">{v}</div>

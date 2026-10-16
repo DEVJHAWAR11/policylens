@@ -29,7 +29,7 @@ export default function Problem() {
       <div data-fine aria-hidden className="absolute inset-0 overflow-hidden px-6 py-10 font-display text-[15px] leading-[1.55] text-cream/55 sm:text-[17px]">
         {FINE_PRINT.repeat(5)}
       </div>
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(11,9,7,0.85)_20%,rgba(11,9,7,0.4)_70%)]" aria-hidden />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--scrim),0.85)_20%,rgba(var(--scrim),0.4)_70%)]" aria-hidden />
       <div className="relative max-w-4xl text-center">
         <p className="mb-6 font-mono text-[12px] uppercase tracking-[0.3em] text-gold">The problem</p>
         <h2 id="problem-title" className="sr-only">Policies are written to be hard to read</h2>

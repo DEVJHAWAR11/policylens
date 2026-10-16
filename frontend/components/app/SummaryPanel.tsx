@@ -84,7 +84,7 @@ export default function SummaryPanel({ policy }: { policy: Policy | null }) {
         const items = summary[key];
         if (!Array.isArray(items) || !items.length) return null;
         return (
-          <section key={key} className="rounded-2xl border border-line bg-black/20 p-4">
+          <section key={key} className="rounded-2xl border border-line bg-inset p-4">
             <h4 className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-gold">{label}</h4>
             <ul className="mt-2 space-y-1.5 text-[13.5px] leading-relaxed text-cream/85">
               {[...new Set(items.map(String))].map((it, i) => <li key={i} className="flex gap-2"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gold" aria-hidden />{String(it)}</li>)}

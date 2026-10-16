@@ -12,6 +12,7 @@ import { FormError } from '@/components/auth/Field';
 import { useAuth } from '@/components/app/AuthProvider';
 import HeroScene from '@/components/hero/HeroScene';
 import Logo from '@/components/ui/Logo';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
@@ -46,7 +47,10 @@ export default function LoginPage() {
       <main className="relative flex flex-col px-4 py-6 sm:px-10">
         <div className="flex items-center justify-between">
           <Link href="/" aria-label="PolicyLens home"><Logo /></Link>
-          <Link href="/" className="flex items-center gap-1.5 text-[13px] text-muted hover:text-cream"><ArrowLeft size={14} aria-hidden /> Home</Link>
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-1.5 text-[13px] text-muted hover:text-cream"><ArrowLeft size={14} aria-hidden /> Home</Link>
+            <ThemeToggle />
+          </div>
         </div>
 
         <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center py-10">

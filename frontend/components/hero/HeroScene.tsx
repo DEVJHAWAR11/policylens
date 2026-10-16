@@ -10,7 +10,8 @@ import DustMotes from './DustMotes';
   Layers (back → front): base glow · far (dome through an arch) · mid (wall, marble columns)
   · foreground (desk, law books, papers, pen, brass lamp) · atmosphere (rays, dust, vignette).
   Every layer is its own element with a depth, so parallax moves them at different speeds.
-  Pass `imageSrc` to replace the coded scene with your own artwork; the atmosphere stays.
+  Pass `imageSrc` to replace the coded scene with your own artwork (one image, or { dark, light });
+  the atmosphere stays. Every colour is a --s-* variable, so the scene follows the theme.
 */
 
 const VB = '0 0 1600 900';
@@ -30,26 +31,26 @@ function Column({ x, w, top = 0, bottom = 650, id }: { x: number; w: number; top
     <g>
       <defs>
         <linearGradient id={`col-${id}`} x1="0" x2="1">
-          <stop offset="0" stopColor="#0d0907" />
-          <stop offset="0.45" stopColor="#21170f" />
-          <stop offset="0.8" stopColor="#3a2918" />
-          <stop offset="0.95" stopColor="#8a6436" />
-          <stop offset="1" stopColor="#c9975a" />
+          <stop offset="0" stopColor="var(--s-col-0)" />
+          <stop offset="0.45" stopColor="var(--s-col-1)" />
+          <stop offset="0.8" stopColor="var(--s-col-2)" />
+          <stop offset="0.95" stopColor="var(--s-col-3)" />
+          <stop offset="1" stopColor="var(--s-col-4)" />
         </linearGradient>
       </defs>
       {/* capital */}
-      <rect x={x - 14} y={top + 40} width={w + 28} height={26} fill="#1c140d" />
-      <rect x={x - 22} y={top + 22} width={w + 44} height={20} fill="#16100b" />
-      <rect x={x + w - 4} y={top + 22} width={26} height={44} fill="#a77a43" opacity={0.25} />
+      <rect x={x - 14} y={top + 40} width={w + 28} height={26} fill="var(--s-cap-a)" />
+      <rect x={x - 22} y={top + 22} width={w + 44} height={20} fill="var(--s-cap-b)" />
+      <rect x={x + w - 4} y={top + 22} width={26} height={44} fill="var(--s-cap-hi)" opacity={0.25} />
       {/* shaft */}
       <rect x={x} y={top + 66} width={w} height={bottom - top - 100} fill={`url(#col-${id})`} />
       {Array.from({ length: flutes }, (_, i) => (
         <line key={i} x1={x + ((i + 1) * w) / (flutes + 1)} x2={x + ((i + 1) * w) / (flutes + 1)} y1={top + 70} y2={bottom - 38}
-          stroke={i > flutes - 3 ? '#d9ae6b' : '#000'} strokeOpacity={i > flutes - 3 ? 0.18 : 0.35} strokeWidth={1.2} />
+          stroke={i > flutes - 3 ? 'var(--s-flute-lit)' : 'var(--s-flute)'} strokeOpacity={i > flutes - 3 ? 0.18 : 0.35} strokeWidth={1.2} />
       ))}
       {/* base */}
-      <rect x={x - 12} y={bottom - 36} width={w + 24} height={18} fill="#1a120c" />
-      <rect x={x - 20} y={bottom - 18} width={w + 40} height={18} fill="#120c08" />
+      <rect x={x - 12} y={bottom - 36} width={w + 24} height={18} fill="var(--s-base-a)" />
+      <rect x={x - 20} y={bottom - 18} width={w + 40} height={18} fill="var(--s-base-b)" />
     </g>
   );
 }
@@ -62,14 +63,14 @@ function CodedScene() {
         <svg viewBox={VB} preserveAspectRatio="xMidYMid slice" className="h-full w-full" aria-hidden="true">
           <defs>
             <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#4a3420" />
-              <stop offset="0.45" stopColor="#b9874d" />
-              <stop offset="0.7" stopColor="#f0c27e" />
-              <stop offset="1" stopColor="#8a5d31" />
+              <stop offset="0" stopColor="var(--s-sky-0)" />
+              <stop offset="0.45" stopColor="var(--s-sky-1)" />
+              <stop offset="0.7" stopColor="var(--s-sky-2)" />
+              <stop offset="1" stopColor="var(--s-sky-3)" />
             </linearGradient>
             <radialGradient id="sun" cx="0.62" cy="0.62" r="0.5">
-              <stop offset="0" stopColor="#ffe2a8" stopOpacity="0.9" />
-              <stop offset="1" stopColor="#ffe2a8" stopOpacity="0" />
+              <stop offset="0" stopColor="var(--s-sun)" stopOpacity="0.9" />
+              <stop offset="1" stopColor="var(--s-sun)" stopOpacity="0" />
             </radialGradient>
             <clipPath id="arch-clip"><path d={ARCH} /></clipPath>
             <filter id="haze"><feGaussianBlur stdDeviation="7" /></filter>
@@ -77,7 +78,7 @@ function CodedScene() {
           <g clipPath="url(#arch-clip)">
             <rect x="880" y="40" width="460" height="620" fill="url(#sky)" />
             <rect x="880" y="40" width="460" height="620" fill="url(#sun)" />
-            <g filter="url(#haze)" fill="#5a3a20" opacity="0.85">
+            <g filter="url(#haze)" fill="var(--s-dome)" opacity="0.85">
               {/* dome building */}
               <rect x="1010" y="390" width="190" height="200" />
               <rect x="960" y="455" width="290" height="140" />
@@ -85,10 +86,10 @@ function CodedScene() {
               <path d="M1030 335 Q1030 205 1105 200 Q1180 205 1180 335 Z" />
               <rect x="1092" y="160" width="26" height="45" />
               <path d="M1098 162 L1105 120 L1112 162 Z" />
-              {Array.from({ length: 6 }, (_, i) => <rect key={i} x={1040 + i * 24} y="340" width="8" height="55" fill="#7a5130" />)}
+              {Array.from({ length: 6 }, (_, i) => <rect key={i} x={1040 + i * 24} y="340" width="8" height="55" fill="var(--s-dome-win)" />)}
             </g>
             {/* trees */}
-            <g filter="url(#haze)" fill="#2c1d10" opacity="0.9">
+            <g filter="url(#haze)" fill="var(--s-trees)" opacity="0.9">
               <ellipse cx="930" cy="560" rx="80" ry="70" />
               <ellipse cx="1290" cy="540" rx="70" ry="90" />
               <ellipse cx="1240" cy="600" rx="110" ry="60" />
@@ -103,15 +104,15 @@ function CodedScene() {
         <svg viewBox={VB} preserveAspectRatio="xMidYMid slice" className="h-full w-full" aria-hidden="true">
           <defs>
             <linearGradient id="wall" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#0c0806" />
-              <stop offset="0.55" stopColor="#1a120b" />
-              <stop offset="1" stopColor="#24180e" />
+              <stop offset="0" stopColor="var(--s-wall-0)" />
+              <stop offset="0.55" stopColor="var(--s-wall-1)" />
+              <stop offset="1" stopColor="var(--s-wall-2)" />
             </linearGradient>
           </defs>
           <path fillRule="evenodd" fill="url(#wall)" d={`M0 0 H1600 V900 H0 Z ${ARCH}`} />
           {/* arch reveal + rim light */}
-          <path d="M905 640 L905 300 Q905 70 1105 70 Q1305 70 1305 300 L1305 640" fill="none" stroke="#3a2817" strokeWidth="26" />
-          <path d="M890 640 L890 300 Q890 52 1105 52 Q1320 52 1320 300 L1320 640" fill="none" stroke="#d9ae6b" strokeOpacity="0.28" strokeWidth="1.5" />
+          <path d="M905 640 L905 300 Q905 70 1105 70 Q1305 70 1305 300 L1305 640" fill="none" stroke="var(--s-arch)" strokeWidth="26" />
+          <path d="M890 640 L890 300 Q890 52 1105 52 Q1320 52 1320 300 L1320 640" fill="none" stroke="var(--s-rim)" strokeOpacity="0.28" strokeWidth="1.5" />
           {/* wall panelling */}
           <g stroke="#d9ae6b" strokeOpacity="0.06" fill="none">
             <rect x="200" y="120" width="420" height="440" />
@@ -128,19 +129,19 @@ function CodedScene() {
         <svg viewBox={VB} preserveAspectRatio="xMidYMid slice" className="h-full w-full" aria-hidden="true">
           <defs>
             <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor="#2a1c11" />
-              <stop offset="0.15" stopColor="#140d08" />
-              <stop offset="1" stopColor="#070504" />
+              <stop offset="0" stopColor="var(--s-desk-0)" />
+              <stop offset="0.15" stopColor="var(--s-desk-1)" />
+              <stop offset="1" stopColor="var(--s-desk-2)" />
             </linearGradient>
             <radialGradient id="reflect" cx="0.5" cy="0.5" r="0.5">
               <stop offset="0" stopColor="#f0c27e" stopOpacity="0.35" />
               <stop offset="1" stopColor="#f0c27e" stopOpacity="0" />
             </radialGradient>
-            <linearGradient id="leather1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#4a2c19" /><stop offset="1" stopColor="#24140b" /></linearGradient>
-            <linearGradient id="leather2" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#3b2414" /><stop offset="1" stopColor="#1c0f08" /></linearGradient>
-            <linearGradient id="leather3" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#2f1d11" /><stop offset="1" stopColor="#150b06" /></linearGradient>
+            <linearGradient id="leather1" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--s-l1a)" /><stop offset="1" stopColor="var(--s-l1b)" /></linearGradient>
+            <linearGradient id="leather2" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--s-l2a)" /><stop offset="1" stopColor="var(--s-l2b)" /></linearGradient>
+            <linearGradient id="leather3" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--s-l3a)" /><stop offset="1" stopColor="var(--s-l3b)" /></linearGradient>
             <linearGradient id="brass" x1="0" x2="1"><stop offset="0" stopColor="#5a3d1c" /><stop offset="0.5" stopColor="#d9ae6b" /><stop offset="1" stopColor="#6b4a22" /></linearGradient>
-            <linearGradient id="paper" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#d9ccb2" /><stop offset="1" stopColor="#8f8268" /></linearGradient>
+            <linearGradient id="paper" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--s-paper-a)" /><stop offset="1" stopColor="var(--s-paper-b)" /></linearGradient>
             <filter id="soft"><feGaussianBlur stdDeviation="10" /></filter>
           </defs>
           {/* desk */}
@@ -160,7 +161,7 @@ function CodedScene() {
               <line x1="40" x2="40" y1={b.y + 4} y2={b.y + 30} stroke="#d9ae6b" strokeOpacity="0.5" />
               <line x1="48" x2="48" y1={b.y + 4} y2={b.y + 30} stroke="#d9ae6b" strokeOpacity="0.35" />
               <line x1={b.w - 48} x2={b.w - 48} y1={b.y + 4} y2={b.y + 30} stroke="#d9ae6b" strokeOpacity="0.35" />
-              <text x={b.w / 2 + 10} y={b.y + 22} textAnchor="middle" fill="#d9ae6b" fillOpacity="0.85"
+              <text x={b.w / 2 + 10} y={b.y + 22} textAnchor="middle" fill="var(--s-book-text)" fillOpacity="0.85"
                 style={{ font: '500 15px var(--font-cormorant), Georgia, serif', letterSpacing: '0.04em' }}>{b.label}</text>
             </g>
           ))}
@@ -173,7 +174,7 @@ function CodedScene() {
               <line key={i} x1={720 + i * 3} y1={724 + i * 10} x2={1090 - i * 2} y2={710 + i * 10} stroke="#2a1e10" strokeOpacity="0.4" />
             ))}
           </g>
-          <path d="M0 860 H1600 V900 H0 Z" fill="#000" opacity="0.4" />
+          <path d="M0 860 H1600 V900 H0 Z" fill="var(--s-floor)" opacity="0.4" />
 
           {/* fountain pen */}
           <g transform="rotate(-8 1220 742)">
@@ -196,7 +197,9 @@ function CodedScene() {
   );
 }
 
-export default function HeroScene({ imageSrc, dim = false }: { imageSrc?: string; dim?: boolean }) {
+export type SceneImage = string | { dark: string; light: string };
+
+export default function HeroScene({ imageSrc, dim = false }: { imageSrc?: SceneImage; dim?: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
   const particles = reduced ? 0 : typeof window !== 'undefined' && window.innerWidth < 768 ? Math.round(PARTICLE_COUNT / 2) : PARTICLE_COUNT;
@@ -233,13 +236,23 @@ export default function HeroScene({ imageSrc, dim = false }: { imageSrc?: string
     <div ref={root} className="absolute inset-0 overflow-hidden bg-bg" aria-hidden="true">
       {/* 1 · base gradient + golden-hour glow */}
       <div className="absolute inset-0" style={{
-        background: 'radial-gradient(60% 55% at 72% 22%, rgba(232,179,106,0.25), transparent 70%), linear-gradient(180deg, #0b0907 0%, #1a130c 100%)',
+        background: 'radial-gradient(60% 55% at 72% 22%, var(--glow), transparent 70%), linear-gradient(180deg, var(--s-base-0) 0%, var(--s-base-1) 100%)',
       }} />
 
       {imageSrc ? (
         <Layer depth={0.4}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied artwork, static export */}
-          <img src={imageSrc} alt="" className="h-full w-full object-cover" />
+          {typeof imageSrc === 'string' ? (
+            // eslint-disable-next-line @next/next/no-img-element -- user-supplied artwork, static export
+            <img src={imageSrc} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <>
+              {/* both are rendered so the theme switch can cross-fade between them */}
+              {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied artwork, static export */}
+              <img src={imageSrc.dark} alt="" className="theme-dark-only absolute inset-0 h-full w-full object-cover" />
+              {/* eslint-disable-next-line @next/next/no-img-element -- user-supplied artwork, static export */}
+              <img src={imageSrc.light} alt="" className="theme-light-only absolute inset-0 h-full w-full object-cover" />
+            </>
+          )}
         </Layer>
       ) : (
         <CodedScene />
@@ -248,14 +261,14 @@ export default function HeroScene({ imageSrc, dim = false }: { imageSrc?: string
       {/* 5 · atmosphere: light rays, lamp glow, dust, legibility gradient, vignette */}
       <div data-depth={0.4} className="absolute inset-0 mix-blend-screen" style={{
         background:
-          'linear-gradient(118deg, transparent 38%, rgba(240,194,126,0.10) 46%, transparent 52%), linear-gradient(112deg, transparent 50%, rgba(240,194,126,0.08) 56%, transparent 61%), linear-gradient(124deg, transparent 58%, rgba(240,194,126,0.07) 63%, transparent 69%)',
+          'linear-gradient(118deg, transparent 38%, rgba(var(--rays),0.10) 46%, transparent 52%), linear-gradient(112deg, transparent 50%, rgba(var(--rays),0.08) 56%, transparent 61%), linear-gradient(124deg, transparent 58%, rgba(var(--rays),0.07) 63%, transparent 69%)',
         filter: 'blur(6px)',
       }} />
       <div className="absolute bottom-[18%] right-[-6%] h-[50vh] w-[30vw] rounded-full"
-        style={{ background: 'radial-gradient(closest-side, rgba(240,190,110,0.35), transparent)', animation: reduced ? undefined : 'lamp-flicker 6s infinite' }} />
+        style={{ background: 'radial-gradient(closest-side, var(--s-lamp), transparent)', animation: reduced ? undefined : 'lamp-flicker 6s infinite' }} />
       <DustMotes count={particles} />
-      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(11,9,7,0.94) 0%, rgba(11,9,7,0.78) 30%, rgba(11,9,7,0.25) 58%, transparent 75%)' }} />
-      <div className="absolute inset-x-0 bottom-0 h-40" style={{ background: 'linear-gradient(180deg, transparent, #0b0907)' }} />
+      <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(var(--scrim),0.94) 0%, rgba(var(--scrim),0.78) 30%, rgba(var(--scrim),0.25) 58%, transparent 75%)' }} />
+      <div className="absolute inset-x-0 bottom-0 h-40" style={{ background: 'linear-gradient(180deg, transparent, var(--bg))' }} />
       <div className="vignette" />
       {dim && <div className="absolute inset-0 bg-bg/70" />}
     </div>

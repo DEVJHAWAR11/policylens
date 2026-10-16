@@ -27,6 +27,12 @@ export default function DustMotes({ count, className = '' }: { count: number; cl
       a: 0.15 + Math.random() * 0.5, phase: Math.random() * Math.PI * 2,
     }));
 
+    // colour follows the theme (--dust is an "r, g, b" triplet); re-read when it changes
+    const root = document.documentElement;
+    let dust = getComputedStyle(root).getPropertyValue('--dust').trim() || '250, 222, 170';
+    const mo = new MutationObserver(() => { dust = getComputedStyle(root).getPropertyValue('--dust').trim() || dust; });
+    mo.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+
     const draw = (t: number) => {
       ctx.clearRect(0, 0, w, h);
       for (const m of motes) {
@@ -39,8 +45,8 @@ export default function DustMotes({ count, className = '' }: { count: number; cl
         const lit = Math.max(0, 1 - Math.hypot(m.x - 0.72, m.y - 0.25) * 1.4);
         const alpha = m.a * (0.35 + lit) * (0.7 + 0.3 * Math.sin(t / 900 + m.phase));
         const g = ctx.createRadialGradient(m.x * w, m.y * h, 0, m.x * w, m.y * h, m.r * 3);
-        g.addColorStop(0, `rgba(250, 222, 170, ${alpha})`);
-        g.addColorStop(1, 'rgba(250, 222, 170, 0)');
+        g.addColorStop(0, `rgba(${dust}, ${alpha})`);
+        g.addColorStop(1, `rgba(${dust}, 0)`);
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.arc(m.x * w, m.y * h, m.r * 3, 0, Math.PI * 2);
@@ -64,6 +70,7 @@ export default function DustMotes({ count, className = '' }: { count: number; cl
     window.addEventListener('resize', resize);
     return () => {
       stop();
+      mo.disconnect();
       io.disconnect();
       document.removeEventListener('visibilitychange', onVis);
       window.removeEventListener('resize', resize);

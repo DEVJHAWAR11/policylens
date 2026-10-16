@@ -127,14 +127,14 @@ export default function PdfViewer({ policyId, policyName, focus }: { policyId: s
         <h2 className="min-w-0 flex-1 truncate text-[13.5px] font-medium text-cream">{policyName || 'Document'}</h2>
         {state === 'ready' && (
           <div className="flex items-center gap-1 font-mono text-[11.5px] text-muted">
-            <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.15).toFixed(2)))} aria-label="Zoom out" className="rounded p-1.5 hover:bg-white/5 hover:text-cream"><Minus size={14} /></button>
+            <button onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.15).toFixed(2)))} aria-label="Zoom out" className="rounded p-1.5 hover:bg-tint hover:text-cream"><Minus size={14} /></button>
             <span className="w-11 text-center">{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom((z) => Math.min(2.5, +(z + 0.15).toFixed(2)))} aria-label="Zoom in" className="rounded p-1.5 hover:bg-white/5 hover:text-cream"><Plus size={14} /></button>
+            <button onClick={() => setZoom((z) => Math.min(2.5, +(z + 0.15).toFixed(2)))} aria-label="Zoom in" className="rounded p-1.5 hover:bg-tint hover:text-cream"><Plus size={14} /></button>
             <span className="mx-1 h-4 w-px bg-line" />
-            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} aria-label="Previous page" className="rounded p-1.5 hover:bg-white/5 hover:text-cream disabled:opacity-30"><ChevronLeft size={14} /></button>
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} aria-label="Previous page" className="rounded p-1.5 hover:bg-tint hover:text-cream disabled:opacity-30"><ChevronLeft size={14} /></button>
             <span className={`rounded px-1.5 py-0.5 ${onCitedPage ? 'pulse-gold bg-gold/15 text-gold-bright' : ''}`} aria-live="polite">{page} / {pages}</span>
-            <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages} aria-label="Next page" className="rounded p-1.5 hover:bg-white/5 hover:text-cream disabled:opacity-30"><ChevronRight size={14} /></button>
-            {url && <a href={url} target="_blank" rel="noreferrer" aria-label="Open PDF in a new tab" className="ml-1 rounded p-1.5 hover:bg-white/5 hover:text-cream"><ExternalLink size={14} /></a>}
+            <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages} aria-label="Next page" className="rounded p-1.5 hover:bg-tint hover:text-cream disabled:opacity-30"><ChevronRight size={14} /></button>
+            {url && <a href={url} target="_blank" rel="noreferrer" aria-label="Open PDF in a new tab" className="ml-1 rounded p-1.5 hover:bg-tint hover:text-cream"><ExternalLink size={14} /></a>}
           </div>
         )}
       </header>
@@ -151,7 +151,7 @@ export default function PdfViewer({ policyId, policyName, focus }: { policyId: s
             </div>
           )}
           {state === 'loading' && (
-            <div className="mx-auto my-4 w-[calc(100%-32px)] max-w-[760px] space-y-3 rounded-xl bg-white/[0.03] p-8" aria-label="Loading document">
+            <div className="mx-auto my-4 w-[calc(100%-32px)] max-w-[760px] space-y-3 rounded-xl bg-tint p-8" aria-label="Loading document">
               <div className="h-5 w-1/2 rounded shimmer" />
               {Array.from({ length: 12 }, (_, i) => <div key={i} className="h-3 rounded shimmer" style={{ width: `${70 + ((i * 37) % 30)}%` }} />)}
             </div>

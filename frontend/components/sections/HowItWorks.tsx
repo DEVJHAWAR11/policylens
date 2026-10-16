@@ -19,7 +19,7 @@ function StepVisual({ step }: { step: number }) {
       <AnimatePresence mode="wait">
         <motion.div key={step} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }} className="min-h-[330px]">
           {step === 0 && (
-            <div className="grid h-[330px] place-items-center rounded-xl border border-dashed border-gold/40 bg-black/20">
+            <div className="grid h-[330px] place-items-center rounded-xl border border-dashed border-gold/40 bg-inset">
               <div className="flex w-64 flex-col items-center gap-4 text-center">
                 <div className="relative h-20 w-20">
                   <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90" aria-hidden>
@@ -30,13 +30,13 @@ function StepVisual({ step }: { step: number }) {
                   <FileText className="absolute inset-0 m-auto text-gold" size={26} aria-hidden />
                 </div>
                 <p className="text-sm text-cream">{DEMO.file}</p>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-white/5"><div className="h-full w-4/5 rounded-full shimmer" /></div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-tint"><div className="h-full w-4/5 rounded-full shimmer" /></div>
                 <p className="font-mono text-[11px] text-muted">Reading pages · building the index</p>
               </div>
             </div>
           )}
           {step === 1 && (
-            <div className="flex h-[330px] flex-col justify-end gap-3 rounded-xl bg-black/20 p-4">
+            <div className="flex h-[330px] flex-col justify-end gap-3 rounded-xl bg-inset p-4">
               <div className="self-end rounded-2xl rounded-br-sm bg-gold/15 px-4 py-2.5 text-sm text-cream">{DEMO.question}</div>
               <div className="w-3/4 space-y-2 rounded-2xl rounded-bl-sm border border-line p-4">
                 <div className="h-2.5 rounded shimmer" /><div className="h-2.5 w-5/6 rounded shimmer" /><div className="h-2.5 w-1/2 rounded shimmer" />
@@ -46,7 +46,7 @@ function StepVisual({ step }: { step: number }) {
           {step === 2 && (
             <div className="grid gap-3 md:grid-cols-[1.1fr_1fr]">
               <PdfPage highlight compact />
-              <div className="rounded-xl border border-line bg-black/25 p-4 text-[13px] leading-relaxed text-cream/90">
+              <div className="rounded-xl border border-line bg-inset p-4 text-[13px] leading-relaxed text-cream/90">
                 {DEMO.answer}
                 <div className="mt-3"><SourceChip lit /></div>
               </div>

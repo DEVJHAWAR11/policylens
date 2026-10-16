@@ -108,7 +108,7 @@ export default function ChatPanel({
                 {m.role === 'user' ? (
                   <p className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-gold/15 px-4 py-2.5 text-[14px] text-cream">{m.text}</p>
                 ) : (
-                  <div className={`rounded-2xl rounded-bl-md border px-4 py-3 text-[14px] leading-relaxed ${m.error ? 'border-danger/40 bg-danger/10 text-[#f3c3b2]' : 'border-line bg-black/25 text-cream/90'}`}>
+                  <div className={`rounded-2xl rounded-bl-md border px-4 py-3 text-[14px] leading-relaxed ${m.error ? 'border-danger/40 bg-danger/10 text-danger-ink' : 'border-line bg-inset text-cream/90'}`}>
                     {m.streaming && !m.text ? (
                       <div className="space-y-2 py-1" aria-label="Thinking"><div className="h-2.5 rounded shimmer" /><div className="h-2.5 w-4/5 rounded shimmer" /><div className="h-2.5 w-3/5 rounded shimmer" /></div>
                     ) : (
@@ -128,7 +128,7 @@ export default function ChatPanel({
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); void send(); }} className="border-t border-line p-3">
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-black/30 p-2 focus-within:border-gold/60">
+        <div className="flex items-end gap-2 rounded-2xl border border-line bg-inset p-2 focus-within:border-gold/60">
           <label htmlFor="ask" className="sr-only">Ask a question about {policy.name}</label>
           <textarea
             id="ask" ref={taRef} rows={1} value={input} disabled={!ready}

@@ -31,7 +31,7 @@ export default function HistoryPanel({ policies, onOpen }: { policies: Policy[];
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="p-3">
-        <label className="flex items-center gap-2 rounded-xl border border-line bg-black/30 px-3 focus-within:border-gold/60">
+        <label className="flex items-center gap-2 rounded-xl border border-line bg-inset px-3 focus-within:border-gold/60">
           <Search size={14} className="text-muted" aria-hidden />
           <span className="sr-only">Search history</span>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search questions and answers" className="h-10 flex-1 bg-transparent text-[13.5px] text-cream outline-none placeholder:text-muted/60" />

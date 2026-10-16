@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, CheckSquare, CloudUpload, FileText, LogOut, RotateCw, Scale, Square, Trash2, X } from 'lucide-react';
 import Logo from '@/components/ui/Logo';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import type { Policy } from '@/lib/types';
 import type { UploadState } from './usePolicies';
 
@@ -33,7 +34,7 @@ function Dropzone({ upload, onFile, onDismiss }: { upload: UploadState | null; o
       onDragLeave={() => { if (--depth.current <= 0) setDrag(false); }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => { e.preventDefault(); depth.current = 0; setDrag(false); const f = e.dataTransfer.files?.[0]; if (f && !active) onFile(f); }}
-      className={`relative overflow-hidden rounded-2xl border border-dashed p-4 transition-colors ${drag ? 'border-gold bg-gold/10' : 'border-gold/35 bg-black/20'}`}
+      className={`relative overflow-hidden rounded-2xl border border-dashed p-4 transition-colors ${drag ? 'border-gold bg-gold/10' : 'border-gold/35 bg-inset'}`}
     >
       <input ref={input} type="file" accept="application/pdf,.pdf" className="sr-only" tabIndex={-1}
         onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onFile(f); }} />
@@ -46,7 +47,7 @@ function Dropzone({ upload, onFile, onDismiss }: { upload: UploadState | null; o
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] text-cream">{upload.name}</p>
             <p className="truncate text-[11.5px] text-muted">{upload.phase === 'uploading' ? 'Uploading…' : upload.message || 'Processing'}</p>
-            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/5"><div className="h-full w-full shimmer" /></div>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-tint"><div className="h-full w-full shimmer" /></div>
           </div>
         </div>
       ) : (
@@ -59,10 +60,10 @@ function Dropzone({ upload, onFile, onDismiss }: { upload: UploadState | null; o
         </button>
       )}
       {upload?.phase === 'failed' && (
-        <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl bg-danger/10 p-2.5 text-[12px] text-[#f3c3b2]">
+        <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl bg-danger/10 p-2.5 text-[12px] text-danger-ink">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
           <span className="flex-1">{upload.message}</span>
-          <button onClick={onDismiss} aria-label="Dismiss" className="shrink-0 rounded p-0.5 hover:bg-white/10"><X size={13} /></button>
+          <button onClick={onDismiss} aria-label="Dismiss" className="shrink-0 rounded p-0.5 hover:bg-tint-strong"><X size={13} /></button>
         </div>
       )}
     </div>
@@ -100,6 +101,7 @@ export default function Sidebar({
     <aside className="flex h-full min-h-0 flex-col" aria-label="Your documents">
       <div className="flex items-center justify-between px-4 pb-3 pt-4">
         <Link href="/" aria-label="PolicyLens home"><Logo /></Link>
+        <ThemeToggle />
       </div>
       <div className="px-4"><Dropzone upload={upload} onFile={onUpload} onDismiss={onDismissUpload} /></div>
 
@@ -130,7 +132,7 @@ export default function Sidebar({
           </ul>
         )}
         {!loading && error && (
-          <div role="alert" className="mx-2 rounded-xl border border-danger/40 bg-danger/10 p-3 text-[13px] text-[#f3c3b2]">
+          <div role="alert" className="mx-2 rounded-xl border border-danger/40 bg-danger/10 p-3 text-[13px] text-danger-ink">
             {error}
             <button onClick={onReload} className="mt-2 flex items-center gap-1.5 text-gold hover:text-gold-bright"><RotateCw size={13} aria-hidden /> Retry</button>
           </div>
@@ -150,7 +152,7 @@ export default function Sidebar({
               const selectable = compareMode && p.status === 'ready';
               return (
                 <motion.li key={p.id} layout initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                  <div className={`group relative flex items-start gap-2 rounded-xl px-2.5 py-2.5 transition-colors ${active && !compareMode ? 'bg-gold/10' : 'hover:bg-white/[0.04]'}`}>
+                  <div className={`group relative flex items-start gap-2 rounded-xl px-2.5 py-2.5 transition-colors ${active && !compareMode ? 'bg-gold/10' : 'hover:bg-tint'}`}>
                     {active && !compareMode && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold" aria-hidden />}
                     <button
                       onClick={() => (selectable ? onToggleCompareId(p.id) : onSelect(p))}
@@ -166,7 +168,7 @@ export default function Sidebar({
                         <span className="block truncate text-[13.5px] text-cream">{p.name}</span>
                         <span className="mt-0.5 block text-[11.5px] leading-snug"><StatusLine p={p} now={now} /></span>
                         {(p.status === 'processing' || p.status === 'queued') && (
-                          <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-white/5">
+                          <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-tint">
                             <span className="block h-full rounded-full bg-gold transition-[width] duration-700" style={{ width: `${Math.max(4, p.progress || 0)}%` }} />
                           </span>
                         )}
@@ -175,9 +177,9 @@ export default function Sidebar({
                     {!compareMode && (
                       <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-focus-within:opacity-100 lg:group-hover:opacity-100">
                         {p.status === 'failed' && (
-                          <button onClick={() => onRetry(p)} aria-label={`Retry processing ${p.name}`} className="rounded-md p-1.5 text-muted hover:bg-white/5 hover:text-gold-bright"><RotateCw size={14} /></button>
+                          <button onClick={() => onRetry(p)} aria-label={`Retry processing ${p.name}`} className="rounded-md p-1.5 text-muted hover:bg-tint hover:text-gold-bright"><RotateCw size={14} /></button>
                         )}
-                        <button onClick={() => onDelete(p)} aria-label={`Delete ${p.name}`} className="rounded-md p-1.5 text-muted hover:bg-white/5 hover:text-danger"><Trash2 size={14} /></button>
+                        <button onClick={() => onDelete(p)} aria-label={`Delete ${p.name}`} className="rounded-md p-1.5 text-muted hover:bg-tint hover:text-danger"><Trash2 size={14} /></button>
                       </div>
                     )}
                   </div>
@@ -191,7 +193,7 @@ export default function Sidebar({
       <div className="flex items-center gap-3 border-t border-line px-4 py-3">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line font-display text-[15px] text-gold">{(userName || '?').charAt(0).toUpperCase()}</span>
         <span className="min-w-0 flex-1 truncate text-[13px] text-cream">{userName || 'Signed in'}</span>
-        <button onClick={onSignOut} aria-label="Sign out" className="rounded-md p-1.5 text-muted hover:bg-white/5 hover:text-cream"><LogOut size={15} /></button>
+        <button onClick={onSignOut} aria-label="Sign out" className="rounded-md p-1.5 text-muted hover:bg-tint hover:text-cream"><LogOut size={15} /></button>
       </div>
     </aside>
   );
