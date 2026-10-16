@@ -99,7 +99,7 @@ export default function Hero() {
           </ul>
         </div>
 
-        <div ref={panelRef} className="opacity-0 lg:ml-auto lg:w-[90%] lg:pl-4" style={{ perspective: 1400 }}>
+        <div ref={panelRef} className="opacity-0 lg:pl-4" style={{ perspective: 1400 }}>
           <GlassDemo tilt={desktop} />
         </div>
       </div>
