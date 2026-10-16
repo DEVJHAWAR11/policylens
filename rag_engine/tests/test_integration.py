@@ -67,8 +67,10 @@ class TestPromptAssembly(unittest.TestCase):
 
         assert "Is flood covered?" in prompt
         assert "Flood is excluded" in prompt
-        assert "POL-001" in prompt
-        assert "INSURANCE POLICY CONTEXT" in prompt
+        # the policy id is deliberately not part of the prompt (retrieval is already scoped to it)
+        assert "POL-001" not in prompt
+        assert "POLICY EXCERPTS" in prompt
+        assert "QUESTION:" in prompt
         assert len(SYSTEM_PROMPT) > 200
         assert "PolicyDecoder" in SYSTEM_PROMPT
 
