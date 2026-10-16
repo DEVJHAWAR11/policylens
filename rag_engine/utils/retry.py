@@ -15,6 +15,12 @@ _TRY_AGAIN = re.compile(r"try again in ([\d.]+)\s*(ms|s)", re.IGNORECASE)
 _MAX_SERVER_HINT = 30.0
 
 
+def is_quota_exhausted(exc: BaseException) -> bool:
+    """A per-DAY quota will not recover within a retry loop; fail fast so callers can fall back."""
+    msg = str(exc).lower()
+    return "per day" in msg or "(tpd)" in msg or "(rpd)" in msg
+
+
 def _server_suggested_delay(exc: BaseException) -> float:
     """Delay the provider asked for (Retry-After header or "try again in 7.2s"), else 0."""
     response = getattr(exc, "response", None)
@@ -55,6 +61,9 @@ def with_retry(
                     raise  # deliberate backpressure — callers turn it into a 503, retrying defeats it
                 except exceptions as exc:
                     last_exception = exc
+                    if is_quota_exhausted(exc):
+                        logger.warning("Function '%s': daily quota exhausted - not retrying", func.__name__)
+                        raise
                     if attempt == max_retries:
                         logger.error(
                             "Function '%s' failed after %d attempts: %s",

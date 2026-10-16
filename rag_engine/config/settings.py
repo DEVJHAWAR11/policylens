@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     # LLM protection: cap concurrent calls and fail fast instead of piling up
     llm_max_concurrency: int = 6
     llm_queue_timeout_seconds: float = 20.0
+    # Groq models have separate quotas on the same key: when the primary hits its limit (free tier:
+    # 200k tokens/DAY per model) requests continue on these, in order. "" disables.
+    llm_fallback_models: str = "openai/gpt-oss-120b,qwen/qwen3.8-27b"
     llm_fallback_provider: str = ""  # e.g. "gemini" — used if the primary provider errors
 
     # Jina (embeddings + reranking) client-side throttle, calls/minute across both. 0 = off.

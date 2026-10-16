@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from rag_engine.config.settings import settings
 from rag_engine.infra.cache import cache, make_key
 from rag_engine.infra.llm_guard import llm_slot
+from rag_engine.llm.llm_factory import get_llm
 from rag_engine.prompts.context_template import build_query_prompt
 from rag_engine.prompts.response_format import ResponseFormatter
 from rag_engine.prompts.system_prompt import SYSTEM_PROMPT
@@ -45,27 +46,43 @@ class QueryService:
         self._reranker = get_reranker()
         self._context_builder = ContextBuilder()
         self._llm = get_llm()
-        self._fallback_llm = None
-        if settings.llm_fallback_provider:
-            try:
-                self._fallback_llm = get_llm(provider=settings.llm_fallback_provider)
-            except Exception as exc:
-                logger.warning("Fallback LLM unavailable: %s", exc)
+        self._fallbacks = self._build_fallbacks()
         self._formatter = ResponseFormatter()
         logger.info("QueryService initialized — all components ready")
 
     # ------------------------------------------------------------------ #
-    #  LLM helpers: concurrency cap + provider fallback
+    #  LLM helpers: concurrency cap + model/provider fallback chain
     # ------------------------------------------------------------------ #
+    @staticmethod
+    def _build_fallbacks() -> list:
+        chain = []
+        if settings.llm_provider.lower() == "groq" and settings.llm_fallback_models.strip():
+            for name in (m.strip() for m in settings.llm_fallback_models.split(",")):
+                if name and name != settings.groq_model:
+                    try:
+                        chain.append(get_llm(provider="groq", model=name))
+                    except Exception as exc:
+                        logger.warning("Fallback model %s unavailable: %s", name, exc)
+        if settings.llm_fallback_provider:
+            try:
+                chain.append(get_llm(provider=settings.llm_fallback_provider))
+            except Exception as exc:
+                logger.warning("Fallback provider unavailable: %s", exc)
+        return chain
+
     def _complete(self, prompt: str) -> str:
         with llm_slot():
             try:
                 return self._llm.complete(prompt, system=SYSTEM_PROMPT)
             except Exception as exc:
-                if self._fallback_llm is None:
-                    raise
-                logger.warning("Primary LLM failed (%s) — using fallback", exc)
-                return self._fallback_llm.complete(prompt, system=SYSTEM_PROMPT)
+                error = exc
+            for llm in self._fallbacks:
+                logger.warning("LLM failed (%s) - trying %s", str(error)[:120], llm.model_id)
+                try:
+                    return llm.complete(prompt, system=SYSTEM_PROMPT)
+                except Exception as exc:
+                    error = exc
+            raise error
 
     def _stream(self, prompt: str):
         with llm_slot():
@@ -77,10 +94,21 @@ class QueryService:
                 return
             except Exception as exc:
                 # once tokens have reached the client we can't restart cleanly
-                if started or self._fallback_llm is None:
+                if started:
                     raise
-                logger.warning("Primary LLM stream failed (%s) — using fallback", exc)
-            yield from self._fallback_llm.stream(prompt, system=SYSTEM_PROMPT)
+                error = exc
+            for llm in self._fallbacks:
+                logger.warning("LLM stream failed (%s) - trying %s", str(error)[:120], llm.model_id)
+                try:
+                    for token in llm.stream(prompt, system=SYSTEM_PROMPT):
+                        started = True
+                        yield token
+                    return
+                except Exception as exc:
+                    if started:
+                        raise
+                    error = exc
+            raise error
 
     @staticmethod
     def check_capacity() -> None:

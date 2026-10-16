@@ -93,7 +93,7 @@ Measured on a laptop against the real stack (Supabase in Singapore, Groq + Jina 
 | 24 simultaneous *uncached* questions | **24/24 succeeded**, 65 s wall (before the rate-limit work: 22/24, 2 errors) | **Groq free tier: 8,000 tokens/min** |
 | Ingest, 2 small PDFs | ready in 7–10 s each | embedding + inserts |
 
-**The honest ceiling is the LLM provider's quota, not this code.** Groq's free tier allows 8,000 tokens/min for the default model
+**The honest ceiling is the LLM provider's quota, not this code.** (Groq's free tier also has a hard *daily* cap of 200,000 tokens per model, about 130 uncached questions/day for the whole site. The RAG service therefore falls back across `LLM_FALLBACK_MODELS`, each with its own quota, and a daily-quota error skips retries instead of waiting.) Groq's free tier allows 8,000 tokens/min for the default model
 and each question uses ~2,000 (prompt + context), so *sustained* uncached throughput is only a handful of questions per minute
 across all users. Bursts are absorbed (throttling, `Retry-After`-aware retries, concurrency cap, polite 503s), but they are
 absorbed by waiting. Ways to raise the ceiling, cheapest first:
