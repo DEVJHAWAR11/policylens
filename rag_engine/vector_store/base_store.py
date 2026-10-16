@@ -30,3 +30,7 @@ class BaseVectorStore(ABC):
     def policy_exists(self, policy_id: str) -> bool:
         """Return ``True`` if at least one chunk exists for *policy_id*."""
         ...
+
+    def get_policy_chunks(self, policy_id: str) -> list[dict]:
+        """Return every chunk of *policy_id* as ``[{id, content, metadata}]`` (no vectors)."""
+        raise NotImplementedError

@@ -9,6 +9,8 @@ from rag_engine.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+EMBED_TASK_ADAPTERS = "jina-v3-retrieval"
+
 
 class IngestionService:
     """End-to-end ingestion: PDF → parse → clean → chunk → embed → Supabase."""
@@ -44,6 +46,19 @@ class IngestionService:
         from rag_engine.utils.status_tracker import status_tracker
         status_tracker.update_status(policy_id, "processing", 5, "Initializing ingestion...")
 
+        try:
+            return self._ingest(pdf_path, policy_id, overwrite, status_tracker)
+        except Exception:
+            # the caller (worker) decides between retry and final failure;
+            # just don't leave half-written chunks behind
+            try:
+                self._store.delete_policy(policy_id)
+            except Exception:
+                logger.exception("Cleanup after failed ingest also failed | policy_id=%s", policy_id)
+            raise
+
+    def _ingest(self, pdf_path: str, policy_id: str, overwrite: bool, status_tracker) -> dict:
+
         # Step 1 — check if already exists
         if self._store.policy_exists(policy_id) and not overwrite:
             count = self._store.get_policy_chunk_count(policy_id)
@@ -52,7 +67,9 @@ class IngestionService:
                 policy_id,
                 count,
             )
-            status_tracker.update_status(policy_id, "ready", 100, "Already ingested")
+            status_tracker.update_status(
+                policy_id, "ready", 100, "Already ingested", chunk_count=count
+            )
             return {
                 "status": "skipped",
                 "policy_id": policy_id,
@@ -69,6 +86,8 @@ class IngestionService:
         # Step 3 — parse + chunk
         status_tracker.update_status(policy_id, "processing", 15, "Parsing PDF...")
         chunks = self._pipeline.run(pdf_path, policy_id)
+        if not chunks:
+            raise ValueError("No text could be extracted from the PDF")
         logger.info("Pipeline produced %d chunks", len(chunks))
         status_tracker.update_status(policy_id, "processing", 60, f"Parsed {len(chunks)} chunks")
 
@@ -78,6 +97,9 @@ class IngestionService:
             meta.to_supabase_dict() if hasattr(meta, "to_supabase_dict") else meta.model_dump()
             for _, meta in chunks
         ]
+        if getattr(self._embedder, "uses_task_adapters", False):
+            for m in metadatas:
+                m["embed_task"] = EMBED_TASK_ADAPTERS  # queries must use the matching adapter
         logger.info("Embedding %d chunks...", len(texts))
         status_tracker.update_status(policy_id, "processing", 65, "Generating embeddings...")
         embeddings = self._embedder.embed_documents(texts)
@@ -96,7 +118,7 @@ class IngestionService:
         )
 
         # ✅ Set ready IMMEDIATELY after chunks stored — don't wait for summary
-        status_tracker.update_status(policy_id, "ready", 100, "Ready")
+        status_tracker.update_status(policy_id, "ready", 100, "Ready", chunk_count=len(chunks))
 
         return {
             "status": "success",

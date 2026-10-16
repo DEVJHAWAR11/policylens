@@ -51,7 +51,7 @@ class DocumentCleaner:
 
         return page_map
 
-    def clean(self, raw_markdown: str) -> str:
+    def clean(self, raw_markdown: str, keep_page_markers: bool = False) -> str:
         """Run the full cleaning pipeline and return the result.
 
         Applies, in order:
@@ -61,10 +61,11 @@ class DocumentCleaner:
         4. Section-heading normalisation
         """
         result = raw_markdown
-        result = self._remove_headers_footers(result)
+        result = self._remove_headers_footers(result, keep_page_markers)
         result = self._fix_hyphenation(result)
         result = self._normalize_whitespace(result)
-        result = self._normalize_section_headings(result)
+        if not keep_page_markers:
+            result = self._normalize_section_headings(result)
 
         logger.info(
             "Cleaner: %s → %s chars",
@@ -78,11 +79,14 @@ class DocumentCleaner:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _remove_headers_footers(text: str) -> str:
+    def _remove_headers_footers(text: str, keep_page_markers: bool = False) -> str:
         """Filter out lines that match known header/footer/separator patterns."""
         cleaned_lines: list[str] = []
         for line in text.splitlines():
             stripped = line.strip()
+            if keep_page_markers and _PAGE_MARKER_RE.match(stripped):
+                cleaned_lines.append(stripped)
+                continue
             if any(pat.match(stripped) for pat in _REMOVE_PATTERNS):
                 continue
             cleaned_lines.append(line)

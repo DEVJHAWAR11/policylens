@@ -26,18 +26,6 @@ class TestQueryPreprocessor(unittest.TestCase):
         result = self.p.preprocess("is fire covered?")
         assert result.count("?") == 1
 
-    def test_extract_filters_policy_id(self):
-        filters = self.p.extract_filters("anything", policy_id="P1")
-        assert filters["policy_id"] == "P1"
-
-    def test_extract_filters_flood(self):
-        filters = self.p.extract_filters("flood damage", policy_id="P1")
-        assert filters["coverage_category"] == "flood"
-
-    def test_extract_filters_deductible(self):
-        filters = self.p.extract_filters("what is the deductible", "P1")
-        assert filters["deductible_related"] is True
-
 
 # ====================================================================== #
 #  PolicyRetriever
@@ -63,18 +51,41 @@ class TestPolicyRetriever(unittest.TestCase):
         mock_store.similarity_search.assert_called_once()
         assert len(results) == 1
 
-    def test_retriever_fallback_on_empty(self):
+    def test_retriever_filters_only_by_policy_id(self):
         mock_store, mock_embedder = self._make_mocks()
-        # First call returns empty → triggers fallback; second call returns 1 result
-        mock_store.similarity_search.side_effect = [
-            [],
-            [{"content": "fallback result", "metadata": {}, "score": 0.5}],
+        mock_store.similarity_search.return_value = []
+
+        retriever = PolicyRetriever(mock_store, mock_embedder)
+        results = retriever.retrieve("flood damage in the fire section", "POL-001")
+
+        # keyword-derived filters used to narrow retrieval wrongly; only policy scoping remains
+        assert results == []
+        mock_store.similarity_search.assert_called_once()
+        assert mock_store.similarity_search.call_args.kwargs["filter_dict"] == {"policy_id": "POL-001"}
+
+    def test_multi_policy_keeps_each_policy_separate(self):
+        mock_store, mock_embedder = self._make_mocks()
+        mock_embedder.supports_task_adapters = False
+        mock_store.get_policy_chunks.side_effect = RuntimeError("no lexical index in this test")
+        mock_store.similarity_search.side_effect = lambda **kw: [
+            {"content": kw["filter_dict"]["policy_id"], "metadata": {"chunk_id": kw["filter_dict"]["policy_id"]}, "score": 0.5}
         ]
 
         retriever = PolicyRetriever(mock_store, mock_embedder)
-        results = retriever.retrieve("flood damage", "POL-001")
+        results = retriever.retrieve_multi_policy("compare", ["A", "B"], k_per_policy=1)
 
-        assert mock_store.similarity_search.call_count == 2
+        assert set(results) == {"A", "B"}
+        assert [r["content"] for r in results["A"]] == ["A"]
+        assert [r["content"] for r in results["B"]] == ["B"]
+
+    def test_rrf_rewards_chunks_found_by_both_retrievers(self):
+        from rag_engine.retrieval.retriever import reciprocal_rank_fusion
+
+        dense = [{"content": "x", "metadata": {"chunk_id": "x"}}, {"content": "y", "metadata": {"chunk_id": "y"}}]
+        lexical = [{"content": "y", "metadata": {"chunk_id": "y"}}, {"content": "z", "metadata": {"chunk_id": "z"}}]
+        fused = reciprocal_rank_fusion([dense, lexical], k=3)
+        assert [r["content"] for r in fused][0] == "y"
+        assert {r["content"] for r in fused} == {"x", "y", "z"}
 
 
 # ====================================================================== #

@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Tuple, Union
 
-from rag_engine.chunking.clause_chunker import ClauseChunker
+from rag_engine.chunking.structured_chunker import StructuredChunker
 from rag_engine.ingestion.cleaner import DocumentCleaner
 from rag_engine.ingestion.pdf_loader import PDFLoader
 from rag_engine.schemas.chunk_metadata import ChunkMetadata
@@ -24,7 +24,7 @@ class IngestionPipeline:
     def __init__(self) -> None:
         self.loader = PDFLoader()
         self.cleaner = DocumentCleaner()
-        self.chunker = ClauseChunker()
+        self.chunker = StructuredChunker()
 
     def run(
         self,
@@ -56,7 +56,7 @@ class IngestionPipeline:
         logger.info("Page map built | %d page boundaries tracked", len(set(page_map.values())))
 
         # Step 2 — clean markdown
-        clean_text = self.cleaner.clean(raw_markdown)
+        clean_text = self.cleaner.clean(raw_markdown, keep_page_markers=True)
         logger.info("Clean complete | %s chars", f"{len(clean_text):,}")
 
         # Step 3 — clause-aware chunking

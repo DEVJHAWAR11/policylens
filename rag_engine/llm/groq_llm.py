@@ -19,11 +19,20 @@ class GroqLLM(BaseLLM):
         self,
         model: str | None = None,
         temperature: float = 0.3,
-        max_tokens: int = 4096,
+        max_tokens: int | None = None,
     ) -> None:
         self._model = model or settings.groq_model
         self._temperature = temperature
-        self._max_tokens = max_tokens
+        from rag_engine.config.settings import settings as _s
+
+        # Groq budgets requested output tokens against the per-minute limit, so a big cap
+        # throttles everyone even when answers are short
+        self._max_tokens = max_tokens or _s.llm_max_output_tokens
+        self._extra_body = (
+            {"reasoning_effort": settings.llm_reasoning_effort}
+            if settings.llm_reasoning_effort and "gpt-oss" in self._model
+            else None
+        )
         self._client = OpenAI(
             api_key=settings.groq_api_key,
             base_url="https://api.groq.com/openai/v1",
@@ -46,7 +55,7 @@ class GroqLLM(BaseLLM):
     # ------------------------------------------------------------------ #
     #  complete_with_messages
     # ------------------------------------------------------------------ #
-    @with_retry(max_retries=4, delay=5.0, backoff=2.0)
+    @with_retry(max_retries=4, delay=2.0, backoff=2.0)
     def complete_with_messages(self, messages: list[dict]) -> str:
         response = self._client.chat.completions.create(
             model=self._model,
@@ -54,6 +63,7 @@ class GroqLLM(BaseLLM):
             temperature=self._temperature,
             max_tokens=self._max_tokens,
             stream=False,
+            extra_body=self._extra_body,
         )
         result = response.choices[0].message.content
         logger.info(
@@ -81,6 +91,7 @@ class GroqLLM(BaseLLM):
             temperature=self._temperature,
             max_tokens=self._max_tokens,
             stream=True,
+            extra_body=self._extra_body,
         )
         for chunk in response_stream:
             if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:

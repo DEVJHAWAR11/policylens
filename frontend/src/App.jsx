@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef } from "react";
 import Navbar from "./components/Navbar/Navbar";
 import Hero from "./components/Hero/Hero";
 import Footer from "./components/Footer/Footer";
+import ConnectionBanner from "./components/ConnectionBanner";
 import Login from "./components/Auth/Login";
 import UploadModal from "./components/Dashboard/UploadModal";
 import Dboard from "./components/Dashboard/Dboard";
 import Chatbot from "./components/Dashboard/Chatbot";
-import { fetchApi } from "./api";
+import { fetchApi, AUTH_EXPIRED_EVENT } from "./api";
 import { supabase } from "./supabaseClient";
 import { isPersonalEmailAllowed, PERSONAL_EMAIL_ERROR } from "./utils/personalEmail";
 
-export default function App() {
+function AppInner() {
   const [isDark, setIsDark] = useState(false);
   const [appState, setAppState] = useState('home');
   const [userName, setUserName] = useState('');
@@ -23,6 +24,7 @@ export default function App() {
     return hasOAuthFragment || hasOAuthIntent;
   });
   const lastOAuthSyncKey = useRef('');
+  const syncInFlight = useRef(null);
 
   const getRouteFromHash = (rawHash) => {
     const knownRoutes = new Set(['home', 'login', 'upload', 'dboard', 'dashboard', 'chatbot']);
@@ -35,10 +37,6 @@ export default function App() {
     if (hash.includes('access_token=')) return 'login';
     return 'home';
   };
-
-  useEffect(() => {
-    console.log("Current App State:", appState);
-  }, [appState]);
 
   useEffect(() => {
     if (isDark) {
@@ -88,6 +86,7 @@ export default function App() {
         localStorage.removeItem('oauth_redirect_intent');
         if (event === 'SIGNED_OUT') {
           lastOAuthSyncKey.current = '';
+          syncInFlight.current = null;
           setUserName('');
         }
         return;
@@ -104,20 +103,26 @@ export default function App() {
       try {
         const syncKey = `${session.user.id}:${session.access_token || ''}`;
         if (lastOAuthSyncKey.current !== syncKey) {
-          const data = await fetchApi('/auth/google', {
-            method: 'POST',
-            body: {
-              email: session.user.email,
-              name: nextName,
-            },
-          });
-
-          if (!data?.token) {
-            throw new Error('No backend auth token received from OAuth login.');
+          // Supabase fires several auth events at once (INITIAL_SESSION, SIGNED_IN,
+          // getSession). Share one in-flight request so the backend is only hit once
+          // and every caller waits for the token before continuing.
+          if (syncInFlight.current?.key !== syncKey) {
+            // The backend verifies this Supabase access token itself; it never trusts
+            // an email sent in the body.
+            const promise = fetchApi('/auth/google', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            }).then((data) => {
+              if (!data?.token) {
+                throw new Error('No backend auth token received from OAuth login.');
+              }
+              localStorage.setItem('token', data.token);
+              lastOAuthSyncKey.current = syncKey;
+            });
+            syncInFlight.current = { key: syncKey, promise };
+            promise.catch(() => { syncInFlight.current = null; }); // allow retry after failure
           }
-
-          localStorage.setItem('token', data.token);
-          lastOAuthSyncKey.current = syncKey;
+          await syncInFlight.current.promise;
         }
       } catch (err) {
         console.error('OAuth session sync failed:', err);
@@ -125,7 +130,7 @@ export default function App() {
         localStorage.removeItem('oauth_redirect_intent');
         await supabase.auth.signOut();
         setUserName('');
-        setAuthError('Google sign-in failed on server sync. Please try again.');
+        setAuthError(`Google sign-in failed on server sync: ${err.message || 'Please try again.'}`);
         redirectToLogin();
         return;
       }
@@ -171,6 +176,7 @@ export default function App() {
       window.history.replaceState({ appState: initialState }, '', `#${initialState}`);
     }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync initial route from the URL hash once on mount
     setAppState(initialState);
 
     const handlePopState = (e) => {
@@ -184,10 +190,34 @@ export default function App() {
 
   const toggleTheme = () => setIsDark(!isDark);
 
+  // Backend rejected our session token → sign out and go back to login.
+  useEffect(() => {
+    const onExpired = async () => {
+      localStorage.removeItem('oauth_redirect_intent');
+      lastOAuthSyncKey.current = '';
+      syncInFlight.current = null;
+      setUserName('');
+      setAuthError('Your session expired. Please sign in again.');
+      try { await supabase.auth.signOut(); } catch { /* already signed out */ }
+      window.history.replaceState({ appState: 'login' }, '', '#login');
+      setAppState('login');
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
+
+  // Dashboard-side routes need a session; send everyone else to login.
+  const isProtectedRoute = ['dboard', 'dashboard', 'chatbot', 'upload'].includes(appState);
+  const hasSession = Boolean(localStorage.getItem('token'));
+  if (!isAuthResolving && isProtectedRoute && !hasSession) {
+    window.history.replaceState({ appState: 'login' }, '', '#login');
+    setTimeout(() => setAppState('login'), 0);
+    return null;
+  }
+
   const handleUploadComplete = (policyId) => {
     // UploadModal already completed the upload — just navigate to dashboard.
     // We store the received policy_id so Dboard knows which policy to open automatically.
-    console.log("Upload finished! Routing to Dboard with policy:", policyId);
     setInitialPolicyId(policyId);
     navigateTo('dboard');
   };
@@ -224,6 +254,7 @@ export default function App() {
           localStorage.removeItem('token');
           localStorage.removeItem('oauth_redirect_intent');
           lastOAuthSyncKey.current = '';
+          syncInFlight.current = null;
           setAuthError('');
           setUserName('');
           try {
@@ -313,5 +344,14 @@ export default function App() {
 
       {appState === 'home' && <Footer />}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <ConnectionBanner />
+      <AppInner />
+    </>
   );
 }

@@ -91,8 +91,8 @@ class TestSupabaseVectorStore(unittest.TestCase):
     def test_policy_exists_true(self, mock_create_client: MagicMock):
         store, mock_client = self._make_store(mock_create_client)
 
-        mock_response = MagicMock(count=5)
-        mock_client.table().select().filter().execute.return_value = mock_response
+        mock_response = MagicMock(data=[{"id": 1}])
+        mock_client.table().select().eq().limit().execute.return_value = mock_response
 
         self.assertTrue(store.policy_exists("POL-001"))
 
@@ -103,8 +103,8 @@ class TestSupabaseVectorStore(unittest.TestCase):
     def test_policy_exists_false(self, mock_create_client: MagicMock):
         store, mock_client = self._make_store(mock_create_client)
 
-        mock_response = MagicMock(count=0)
-        mock_client.table().select().filter().execute.return_value = mock_response
+        mock_response = MagicMock(data=[])
+        mock_client.table().select().eq().limit().execute.return_value = mock_response
 
         self.assertFalse(store.policy_exists("POL-001"))
 

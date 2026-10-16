@@ -106,7 +106,7 @@ function MessageBubble({ msg, T }) {
   );
 }
 
-export default function Chatbot({ file, isDark: initDark }) {
+export default function Chatbot({ file }) {
   const [chatMessage, setChatMessage] = useState('');
   const [isTyping,    setIsTyping]    = useState(false);
   const [dark,        setDark]        = useState(false);
@@ -139,12 +139,18 @@ export default function Chatbot({ file, isDark: initDark }) {
     setChatMessage('');
     setIsTyping(true);
     const aiMsgId = crypto.randomUUID();
+
+    if (!file?.policy_id) {
+      setMessages(p => [...p, { id: aiMsgId, sender: 'ai', text: 'Please open a policy from your dashboard first, then ask your question there.' }]);
+      setIsTyping(false);
+      return;
+    }
     setMessages(p => [...p, { id: aiMsgId, sender: 'ai', text: '' }]);
-    
+
     try {
       await streamApi('/query/stream', {
         method: 'POST',
-        body: { question: text, policy_id: file?.policy_id || 'test' }
+        body: { question: text, policy_id: file.policy_id }
       }, (token) => {
         setMessages(prev => prev.map(m => 
           m.id === aiMsgId ? { ...m, text: m.text + token } : m

@@ -123,6 +123,7 @@ function ForgotModal({ dark, T, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [shake, setShake] = useState(false);
+  const [resetToken, setResetToken] = useState('');
   const overlayRef = useRef(null);
 
   const mono = { fontFamily: "'JetBrains Mono',monospace" };
@@ -142,8 +143,10 @@ function ForgotModal({ dark, T, onClose }) {
     if (!email.trim()) return triggerError('Please enter your email.');
     setError(''); setLoading(true);
     try {
-      // TODO: replace with → POST /api/auth/check-email then supabase.auth.resetPasswordForEmail()
-      await new Promise(r => setTimeout(r, 1000));
+      await fetchApi('/auth/forgot-password', {
+        method: 'POST',
+        body: { email: email.trim() },
+      });
       setStep('code');
     } catch (err) {
       triggerError(err.message || 'Failed to send reset code. Please try again.');
@@ -154,10 +157,20 @@ function ForgotModal({ dark, T, onClose }) {
 
   const verifyCode = async (e) => {
     e.preventDefault();
-    if (code.length < 4) return triggerError('Enter the 6-digit code sent to your email.');
+    if (code.length < 6) return triggerError('Enter the 6-digit code sent to your email.');
     setError(''); setLoading(true);
-    await new Promise(r => setTimeout(r, 800));
-    setLoading(false); setStep('reset');
+    try {
+      const data = await fetchApi('/auth/verify-reset-code', {
+        method: 'POST',
+        body: { email: email.trim(), code },
+      });
+      setResetToken(data.resetToken);
+      setStep('reset');
+    } catch (err) {
+      triggerError(err.message || 'Invalid or expired code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetPassword = async (e) => {
@@ -165,9 +178,18 @@ function ForgotModal({ dark, T, onClose }) {
     if (newPw.length < 8) return triggerError('Password must be at least 8 characters.');
     if (newPw !== confirm) return triggerError('Passwords do not match.');
     setError(''); setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    setLoading(false); setStep('done');
-    setTimeout(onClose, 2200);
+    try {
+      await fetchApi('/auth/reset-password', {
+        method: 'POST',
+        body: { resetToken, password: newPw },
+      });
+      setStep('done');
+      setTimeout(onClose, 2200);
+    } catch (err) {
+      triggerError(err.message || 'Failed to reset password. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const stepProgress = { email: 0, code: 1, reset: 2, done: 3 };
@@ -428,7 +450,6 @@ function SignupModal({ dark, T, onClose, onSuccess }) {
         method: 'POST',
         body: { name, email, password }
       });
-      console.log('Signup successful:', data);
       localStorage.setItem('token', data.token);
       setDone(true);
       setTimeout(() => { onSuccess?.({ name, email }); onClose(); }, 2000);
@@ -697,7 +718,7 @@ function SignupModal({ dark, T, onClose, onSuccess }) {
 }
 
 /* ══ LOGIN PAGE ═══════════════════════════════════════════════════════ */
-export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuccess, forcedError = '' }) {
+export default function LoginPage({ onLoginSuccess, onSignupSuccess, forcedError = '' }) {
   const [dark, setDark] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -751,7 +772,6 @@ export default function LoginPage({ onLoginSuccess, onGoogleSuccess, onSignupSuc
         body: { email, password }
       });
       localStorage.setItem('token', data.token);
-      console.log('Login successful:', data);
       onLoginSuccess?.({ email, name: data.user?.name || deriveName(email) });
     } catch (err) {
       triggerError(err.message || 'Invalid credentials. Please try again.');
