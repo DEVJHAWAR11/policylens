@@ -63,17 +63,29 @@ class TestPolicyRetriever(unittest.TestCase):
         mock_store.similarity_search.assert_called_once()
         assert mock_store.similarity_search.call_args.kwargs["filter_dict"] == {"policy_id": "POL-001"}
 
-    def test_multi_policy_embeds_once_and_merges_by_score(self):
+    def test_multi_policy_keeps_each_policy_separate(self):
         mock_store, mock_embedder = self._make_mocks()
+        mock_embedder.supports_task_adapters = False
+        mock_store.get_policy_chunks.side_effect = RuntimeError("no lexical index in this test")
         mock_store.similarity_search.side_effect = lambda **kw: [
-            {"content": kw["filter_dict"]["policy_id"], "metadata": {}, "score": 0.9 if kw["filter_dict"]["policy_id"] == "B" else 0.5}
+            {"content": kw["filter_dict"]["policy_id"], "metadata": {"chunk_id": kw["filter_dict"]["policy_id"]}, "score": 0.5}
         ]
 
         retriever = PolicyRetriever(mock_store, mock_embedder)
         results = retriever.retrieve_multi_policy("compare", ["A", "B"], k_per_policy=1)
 
-        mock_embedder.embed_query.assert_called_once()
-        assert [r["content"] for r in results] == ["B", "A"]
+        assert set(results) == {"A", "B"}
+        assert [r["content"] for r in results["A"]] == ["A"]
+        assert [r["content"] for r in results["B"]] == ["B"]
+
+    def test_rrf_rewards_chunks_found_by_both_retrievers(self):
+        from rag_engine.retrieval.retriever import reciprocal_rank_fusion
+
+        dense = [{"content": "x", "metadata": {"chunk_id": "x"}}, {"content": "y", "metadata": {"chunk_id": "y"}}]
+        lexical = [{"content": "y", "metadata": {"chunk_id": "y"}}, {"content": "z", "metadata": {"chunk_id": "z"}}]
+        fused = reciprocal_rank_fusion([dense, lexical], k=3)
+        assert [r["content"] for r in fused][0] == "y"
+        assert {r["content"] for r in fused} == {"x", "y", "z"}
 
 
 # ====================================================================== #

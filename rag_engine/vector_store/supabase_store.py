@@ -48,6 +48,11 @@ class SupabaseVectorStore(BaseVectorStore):
         with ThreadPoolExecutor(max_workers=_INSERT_WORKERS) as pool:
             list(pool.map(_insert_batch, enumerate(batches, start=1)))
 
+        pids = {c[2].get("policy_id") for c in chunks}
+        from rag_engine.retrieval.lexical import lexical_cache
+
+        for pid in pids:
+            lexical_cache.invalidate(pid)
         logger.info("Successfully stored %d chunks in Supabase", len(chunks))
 
     # ------------------------------------------------------------------ #
@@ -91,11 +96,39 @@ class SupabaseVectorStore(BaseVectorStore):
         logger.info("similarity_search | k=%d | returned %d results", k, len(results))
         return results
 
+    @with_retry(max_retries=3, delay=0.5, backoff=2.0)
+    def get_policy_chunks(self, policy_id: str) -> list[dict]:
+        """All chunks of one policy (text + metadata, no vectors), paged past the 1000-row cap."""
+        rows: list[dict] = []
+        page = 500
+        while True:
+            resp = (
+                self._client.table(self._table)
+                .select("id, content, metadata")
+                .eq("policy_id", policy_id)
+                .order("id")
+                .range(len(rows), len(rows) + page - 1)
+                .execute()
+            )
+            rows.extend(resp.data)
+            if len(resp.data) < page:
+                return rows
+
+    def update_embeddings(self, updates: list[tuple[int, list[float], dict]]) -> None:
+        """Replace the vector and metadata of existing rows (used by the re-embed migration)."""
+        for row_id, vector, meta in updates:
+            self._client.table(self._table).update(
+                {"embedding": vector, "metadata": meta}
+            ).eq("id", row_id).execute()
+
     # ------------------------------------------------------------------ #
     #  delete / exists
     # ------------------------------------------------------------------ #
     def delete_policy(self, policy_id: str) -> None:
         self._client.table(self._table).delete().eq("policy_id", policy_id).execute()
+        from rag_engine.retrieval.lexical import lexical_cache
+
+        lexical_cache.invalidate(policy_id)
         logger.info("Deleted all chunks for policy_id=%s", policy_id)
 
     @with_retry(max_retries=3, delay=0.5, backoff=2.0)

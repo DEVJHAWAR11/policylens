@@ -97,8 +97,8 @@ class QueryService:
         self,
         question: str,
         policy_id: str,
-        k: int = 5,
-        top_k_rerank: int = 3,
+        k: int = settings.retrieval_k,
+        top_k_rerank: int = settings.rerank_top_k,
     ) -> dict:
         """Answer *question* using chunks from *policy_id*."""
         logger.info("QueryService.query START | policy_id=%s | q='%s'", policy_id, question[:60])
@@ -127,8 +127,8 @@ class QueryService:
         self,
         question: str,
         policy_id: str,
-        k: int = 5,
-        top_k_rerank: int = 3,
+        k: int = settings.retrieval_k,
+        top_k_rerank: int = settings.rerank_top_k,
     ):
         """Do the blocking retrieval eagerly (so failures are real HTTP errors) and
         return a token iterator for the LLM phase."""
@@ -159,7 +159,7 @@ class QueryService:
 
         return generate()
 
-    def stream_query(self, question: str, policy_id: str, k: int = 5, top_k_rerank: int = 3):
+    def stream_query(self, question: str, policy_id: str, k: int = settings.retrieval_k, top_k_rerank: int = 3):
         """Compatibility wrapper: retrieval + streaming as one generator."""
         yield from self.prepare_stream(question, policy_id, k, top_k_rerank)
 
@@ -167,21 +167,29 @@ class QueryService:
     #  multi-policy query
     # ------------------------------------------------------------------ #
     def query_multi_policy(
-        self, question: str, policy_ids: list[str], k_per_policy: int = 3
+        self, question: str, policy_ids: list[str], k_per_policy: int = 8
     ) -> dict:
-        """Answer *question* across several policies (e.g. "compare these two")."""
+        """Answer *question* across several policies (e.g. "compare these two").
+
+        Each policy is retrieved and reranked on its own, then a fair share of the best
+        chunks from every policy goes to the LLM, so one policy cannot crowd out the rest."""
         ids = sorted(set(policy_ids))
         key = make_key("ansm", ",".join(ids), str(k_per_policy), _normalize(question))
         cached = cache.get_json(key)
         if cached:
             return cached
 
-        raw_results = self._retriever.retrieve_multi_policy(
-            question, ids, k_per_policy=k_per_policy
-        )
-        reranked = self._reranker.rerank(question, raw_results, top_k=min(6, len(raw_results)))
-        context = self._context_builder.build(reranked)
-        prompt = build_query_prompt(question, context, f"Multi-policy: {', '.join(ids)}")
+        candidates = self._retriever.retrieve_multi_policy(question, ids, k_per_policy=k_per_policy)
+        share = max(2, min(settings.rerank_top_k, 8 // len(ids)))  # keep the prompt inside token limits
+
+        def _rerank(pid: str) -> list[dict]:
+            return self._reranker.rerank(question, candidates.get(pid, []), top_k=share)
+
+        with ThreadPoolExecutor(max_workers=min(len(ids), 5)) as pool:
+            reranked: list[dict] = [c for chunks in pool.map(_rerank, ids) for c in chunks]
+
+        context = self._context_builder.build(reranked, max_tokens=4500)
+        prompt = build_query_prompt(question, context, f"Comparing {len(ids)} policies", multi=True)
         result = self._formatter.format_answer(self._complete(prompt), question, reranked)
 
         if result["answer"]:

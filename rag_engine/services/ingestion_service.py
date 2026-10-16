@@ -9,6 +9,8 @@ from rag_engine.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+EMBED_TASK_ADAPTERS = "jina-v3-retrieval"
+
 
 class IngestionService:
     """End-to-end ingestion: PDF → parse → clean → chunk → embed → Supabase."""
@@ -95,6 +97,9 @@ class IngestionService:
             meta.to_supabase_dict() if hasattr(meta, "to_supabase_dict") else meta.model_dump()
             for _, meta in chunks
         ]
+        if getattr(self._embedder, "uses_task_adapters", False):
+            for m in metadatas:
+                m["embed_task"] = EMBED_TASK_ADAPTERS  # queries must use the matching adapter
         logger.info("Embedding %d chunks...", len(texts))
         status_tracker.update_status(policy_id, "processing", 65, "Generating embeddings...")
         embeddings = self._embedder.embed_documents(texts)

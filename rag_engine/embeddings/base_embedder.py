@@ -22,6 +22,16 @@ class BaseEmbedder(ABC):
         """Return the canonical model identifier."""
         ...
 
+    @property
+    def supports_task_adapters(self) -> bool:
+        """True when the provider can embed queries/passages with different adapters."""
+        return False
+
+    @property
+    def uses_task_adapters(self) -> bool:
+        """True when this embedder embeds passages and queries with different adapters."""
+        return False
+
     # ── concrete helper ──────────────────────────────────────────────
     def get_dimension(self) -> int:
         """Return the dimensionality of the embedding vectors."""

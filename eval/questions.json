@@ -1,0 +1,35 @@
+{
+  "policy_file": "policies/lic_new_jeevan_shanti.pdf",
+  "notes": "LIC New Jeevan Shanti is a SINGLE-premium deferred ANNUITY: it has no grace period, no waiting period, no hospital cover. 'answerable=false' questions must get the not-found reply. 'evidence' = regexes that must appear in the retrieved chunks (retrieval hit). 'answer_all'/'answer_any' = regexes the answer must match (all of / at least one of).",
+  "questions": [
+    {"id": "free_look", "q": "What is the free look period?", "evidence": ["15 days"], "answer_all": ["15"], "answer_any": ["30 days", "online"]},
+    {"id": "free_look_refund", "q": "What do I get back if I return the policy during the free look period?", "evidence": ["stamp duty"], "answer_all": ["premium", "stamp duty"]},
+    {"id": "gsv_year1", "q": "What is the guaranteed surrender value factor in policy year 1?", "evidence": ["GSV Factor"], "answer_all": ["75"]},
+    {"id": "gsv_year5", "q": "What is the guaranteed surrender value factor from policy year 5 onwards?", "evidence": ["GSV Factor"], "answer_all": ["90"]},
+    {"id": "gsv_formula", "q": "How is the guaranteed surrender value calculated?", "evidence": ["GSV Factor \\* Purchase Price"], "answer_all": ["purchase price", "annuity"]},
+    {"id": "surrender_when", "q": "Can I surrender the policy at any time?", "evidence": ["surrendered at anytime"], "answer_all": ["(?i)^\\W*yes|any ?time"]},
+    {"id": "death_benefit", "q": "How much is the death benefit?", "evidence": ["105% of Purchase Price"], "answer_all": ["105"]},
+    {"id": "death_benefit_payout_options", "q": "In what ways can the death benefit be paid to the nominee?", "evidence": ["Annuitisation of Death Benefit", "In Installment"], "answer_all": ["(?i)lump ?sum", "(?i)annuit", "(?i)install?ment"]},
+    {"id": "installment_years", "q": "Over how many years can death benefit instalments be taken?", "evidence": ["5 or 10 or 15 years"], "answer_all": ["5", "10", "15"]},
+    {"id": "min_installment_monthly", "q": "What is the minimum monthly instalment amount for the death benefit?", "evidence": ["Monthly"], "answer_all": ["5,?000"]},
+    {"id": "loan_when", "q": "When can I take a loan against the policy?", "evidence": ["three months from the completion of policy"], "answer_all": ["(?i)3 months|three months"]},
+    {"id": "loan_max", "q": "What is the maximum loan I can get?", "evidence": ["80% of Surrender Value"], "answer_all": ["80"]},
+    {"id": "loan_interest", "q": "What interest rate applies to a policy loan?", "evidence": ["300 basis points"], "answer_any": ["300 basis", "9\\.5", "G-Sec"]},
+    {"id": "suicide", "q": "What happens if the annuitant commits suicide?", "evidence": ["commits suicide"], "answer_all": ["12 months", "80 ?%"]},
+    {"id": "death_intimation", "q": "Within how many days must a death be reported to LIC?", "evidence": ["Within 90 days"], "answer_all": ["90"]},
+    {"id": "annuity_options", "q": "What annuity options does this plan offer?", "evidence": ["Deferred annuity for", "Joint"], "answer_all": ["(?i)single life", "(?i)joint life"]},
+    {"id": "annuity_modes", "q": "How often can the annuity be paid out?", "evidence": ["half-yearly, quarterly, and monthly"], "answer_all": ["(?i)yearly", "(?i)half", "(?i)quarterly", "(?i)monthly"]},
+    {"id": "annuity_arrears", "q": "Is the annuity paid in advance or in arrears?", "evidence": ["payable in arrears"], "answer_all": ["(?i)arrears"]},
+    {"id": "deferment_payout", "q": "Is anything paid to me during the deferment period if I survive?", "evidence": ["Nothing is payable during the deferment"], "answer_all": ["(?i)nothing|no "]},
+    {"id": "joint_first_death", "q": "In joint life option, what happens to the annuity after the first of the two annuitants dies after the deferment period?", "evidence": ["100% of the annuity amount shall continue"], "answer_all": ["100"]},
+    {"id": "existence_cert", "q": "Why do I need to submit an existence certificate?", "evidence": ["Existence Certificate"], "answer_all": ["(?i)annuity", "(?i)releas|paid|payment"]},
+    {"id": "assignment", "q": "Is assignment of the policy allowed?", "evidence": ["Assignment is allowed"], "answer_all": ["(?i)yes|allowed"]},
+    {"id": "divyangjan", "q": "What special option exists for a dependant with a disability?", "evidence": ["Divyangjan"], "answer_all": ["(?i)divyangjan|disab"]},
+    {"id": "grievance_irdai", "q": "How do I complain to IRDAI if LIC doesn't respond?", "evidence": ["155255|complaints@irdai"], "answer_any": ["155255", "complaints@irdai", "igms"]},
+
+    {"id": "NEG_grace", "q": "What is the grace period for premium payment?", "answerable": false},
+    {"id": "NEG_waiting", "q": "What is the waiting period before pre-existing diseases are covered?", "answerable": false},
+    {"id": "NEG_hospital", "q": "Does this policy cover hospitalisation expenses?", "answerable": false},
+    {"id": "NEG_premium_due", "q": "How many annual premiums do I have to pay?", "answerable": false, "note": "single premium; answer 'one/single premium' is also acceptable", "answer_any": ["(?i)single premium|one[- ]time|only once|couldn.t find"]}
+  ]
+}

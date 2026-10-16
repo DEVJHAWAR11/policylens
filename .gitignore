@@ -45,3 +45,5 @@ Thumbs.db
 
 # Local deploy helper files that contain secrets — never commit
 deploy-secrets/
+
+eval/out/

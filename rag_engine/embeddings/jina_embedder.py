@@ -39,15 +39,27 @@ class JinaEmbedder(BaseEmbedder):
     def model_id(self) -> str:
         return "jina-embeddings-v3"
 
-    def embed_query(self, text: str) -> list[float]:
+    @property
+    def supports_task_adapters(self) -> bool:
+        return True
+
+    @property
+    def uses_task_adapters(self) -> bool:
+        from rag_engine.config.settings import settings
+
+        return bool(settings.jina_task_adapters)
+
+    def embed_query(self, text: str, adapters: bool | None = None) -> list[float]:
+        """*adapters* must match how the target policy was embedded (see ``embed_task`` metadata)."""
         from rag_engine.config.settings import settings
         from rag_engine.infra.cache import cache, make_key
 
-        key = make_key("emb", self._model, str(self._dimensions), text)
+        adapters = self.uses_task_adapters if adapters is None else adapters
+        key = make_key("emb", self._model, str(self._dimensions), str(adapters), text)
         cached = cache.get_json(key)
         if cached:
             return cached
-        vector = self._call_api([text])[0]
+        vector = self._call_api([text], task="retrieval.query" if adapters else None)[0]
         cache.set_json(key, vector, settings.embedding_cache_ttl_seconds)
         return vector
 
@@ -62,7 +74,7 @@ class JinaEmbedder(BaseEmbedder):
         
         with ThreadPoolExecutor(max_workers=4) as executor:
             # map preserves order
-            results = list(executor.map(self._call_api, batches))
+            results = list(executor.map(lambda b: self._call_api(b, task="retrieval.passage" if self.uses_task_adapters else None), batches))
             
         for r in results:
             all_embeddings.extend(r)
@@ -72,7 +84,9 @@ class JinaEmbedder(BaseEmbedder):
     # ── internal ──────────────────────────────────────────────────────────────────
 
     @with_retry(max_retries=4, delay=1.0, backoff=2.0)
-    def _call_api(self, texts: list[str]) -> list[list[float]]:
+    def _call_api(self, texts: list[str], task: str | None = None) -> list[list[float]]:
+        from rag_engine.config.settings import settings
+
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
@@ -82,6 +96,9 @@ class JinaEmbedder(BaseEmbedder):
             "input": texts,
             "dimensions": self._dimensions,  # Jina v3 supports Matryoshka truncation
         }
+        if task:
+            # asymmetric retrieval adapters: queries and passages are embedded differently
+            payload["task"] = task
         _limiter.acquire()
         response = requests.post(
             self._api_url, headers=headers, json=payload, timeout=60

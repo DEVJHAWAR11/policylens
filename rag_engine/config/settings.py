@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     embedding_provider: str = "jina"
     embedding_model: str = "jina-embeddings-v3"
     embedding_dimension: int = 768
+    # Jina v3 task adapters (retrieval.query / retrieval.passage) for NEW ingests. Each chunk
+    # records how it was embedded (metadata.embed_task) and queries follow the policy, so old
+    # and new policies coexist; `python -m rag_engine.reembed` upgrades the old ones.
+    jina_task_adapters: bool = True
+    # hybrid retrieval: vector + BM25 candidates fused with reciprocal-rank fusion
+    hybrid_search: bool = True
+    retrieval_k: int = 8            # fused candidates handed to the reranker
+    candidate_pool: int = 12        # how many candidates each retriever contributes
 
     # llm
     llm_provider: str = "groq"
@@ -54,6 +62,8 @@ class Settings(BaseSettings):
     # reranker: "jina" (hosted API, default), "cross_encoder" (local, needs torch), "none"
     reranker_provider: str = "jina"
     reranker_model: str = "jina-reranker-v2-base-multilingual"
+    # chunks passed to the LLM after reranking (eval: 3 -> 4 lifts retrieval hits 19/24 -> 22/24)
+    rerank_top_k: int = 4
     local_reranker_model: str = "cross-encoder/ms-marco-TinyBERT-L-2-v2"
 
     # redis (optional) — shared cache; falls back to per-process memory when empty
