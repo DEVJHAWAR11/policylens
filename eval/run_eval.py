@@ -96,8 +96,13 @@ class Remote:
 
     def ask(self, question: str, pid: str):
         for attempt in range(6):
-            resp = self.r.post(f"{self.url}/query/", json={"question": question, "policy_id": pid, "k": 5}, headers=self.h, timeout=90)
-            if resp.status_code == 503:
+            try:
+                resp = self.r.post(f"{self.url}/query/", json={"question": question, "policy_id": pid, "k": 8}, headers=self.h, timeout=120)
+            except self.r.RequestException as exc:  # free-tier cold start / restart
+                print(f"    request failed ({type(exc).__name__}); retrying")
+                time.sleep(15)
+                continue
+            if resp.status_code in (502, 503, 504):
                 time.sleep(int(resp.headers.get("Retry-After", 10)))
                 continue
             resp.raise_for_status()

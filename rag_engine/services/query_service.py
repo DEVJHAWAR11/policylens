@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 from rag_engine.config.settings import settings
@@ -17,8 +18,14 @@ logger = get_logger(__name__)
 _STREAM_CHUNK_CHARS = 60
 
 
+_FILLER = re.compile(r"^(?:(?:hi|hello|hey|please|kindly|can you|could you|would you|tell me|let me know|i want to know|i would like to know)(?=\W|$)[\s,]*)+")
+
+
 def _normalize(question: str) -> str:
-    return " ".join(question.lower().split())
+    """Cache key form: same question phrased with different case, punctuation or polite filler hits the same entry."""
+    q = re.sub(r"[^\w%./ -]", " ", question.lower())
+    q = _FILLER.sub("", " ".join(q.split()))
+    return " ".join(q.split())
 
 
 class QueryService:

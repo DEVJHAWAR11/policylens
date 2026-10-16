@@ -19,11 +19,15 @@ class GroqLLM(BaseLLM):
         self,
         model: str | None = None,
         temperature: float = 0.3,
-        max_tokens: int = 4096,
+        max_tokens: int | None = None,
     ) -> None:
         self._model = model or settings.groq_model
         self._temperature = temperature
-        self._max_tokens = max_tokens
+        from rag_engine.config.settings import settings as _s
+
+        # Groq budgets requested output tokens against the per-minute limit, so a big cap
+        # throttles everyone even when answers are short
+        self._max_tokens = max_tokens or _s.llm_max_output_tokens
         self._extra_body = (
             {"reasoning_effort": settings.llm_reasoning_effort}
             if settings.llm_reasoning_effort and "gpt-oss" in self._model

@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     llm_model: str = "openai/gpt-oss-20b"
     # gpt-oss models "think" before answering; those hidden tokens count against provider
     # rate limits and add seconds of latency. Extractive Q&A over a document needs little.
+    llm_max_output_tokens: int = 1200   # answers are 3-6 sentences; a lower cap raises throughput under TPM limits
     llm_reasoning_effort: str = "low"   # low | medium | high ("" = provider default)
 
     # reranker: "jina" (hosted API, default), "cross_encoder" (local, needs torch), "none"
