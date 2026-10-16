@@ -88,7 +88,7 @@ export default function HowItWorks() {
                   <button
                     onClick={() => setStep(i)}
                     aria-current={active ? 'step' : undefined}
-                    className={`flex w-full gap-4 rounded-2xl border p-5 text-left transition-all duration-500 ${active ? 'border-gold/50 bg-gold/[0.06]' : 'border-transparent opacity-55 hover:opacity-90'}`}
+                    className={`flex w-full gap-4 rounded-2xl border p-5 text-left transition-all duration-500 ${active ? 'border-gold/50 bg-gold/[0.06]' : 'border-transparent opacity-55 hover:opacity-90'} max-lg:border-line max-lg:opacity-100`}
                   >
                     <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border font-mono text-[12px] ${active ? 'border-gold text-gold-bright' : 'border-line text-muted'}`}>0{i + 1}</span>
                     <span>
@@ -96,12 +96,14 @@ export default function HowItWorks() {
                       <span className="mt-1.5 block text-[15px] leading-relaxed text-muted">{s.body}</span>
                     </span>
                   </button>
+                  {/* phones: no pinned scene, so every step carries its own picture */}
+                  <div className="mt-3 lg:hidden"><StepVisual step={i} /></div>
                 </li>
               );
             })}
           </ol>
         </div>
-        <StepVisual step={step} />
+        <div className="hidden lg:block"><StepVisual step={step} /></div>
       </div>
     </section>
   );

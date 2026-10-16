@@ -15,9 +15,11 @@ import UseCases from '@/components/sections/UseCases';
 import CustomCursor from '@/components/ui/CustomCursor';
 import { hasSessionToken } from '@/components/app/AuthProvider';
 import { useLenis } from '@/hooks/useLenis';
+import { useScrollReveal } from '@/hooks/useScrollReveal';
 
 export default function LandingPage() {
   useLenis();
+  useScrollReveal();
   const router = useRouter();
   const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {

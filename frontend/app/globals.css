@@ -146,6 +146,11 @@ html.theme-fade, html.theme-fade *, html.theme-fade *::before, html.theme-fade *
     stop-color 0.7s ease, box-shadow 0.7s ease, opacity 0.7s ease !important;
 }
 
+/* Scroll-in reveal (hooks/useScrollReveal): hidden until .rv-in, then rises and fades in. */
+/* The transition lives on the reveal state only, so hiding an element (adding .rv) is instant. */
+.rv { opacity: 0; transform: translateY(var(--rv-y, 32px)); }
+.rv.rv-in { opacity: 1; transform: none; transition: opacity 1s var(--ease-out-expo), transform 1s var(--ease-out-expo); }
+
 /* Per-theme artwork (HeroScene imageSrc={{ dark, light }}): both render, one is shown. */
 .theme-dark-only, .theme-light-only { transition: opacity 0.7s ease; }
 :root[data-theme="light"] .theme-dark-only { opacity: 0; }
