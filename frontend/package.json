@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/copy-pdf-worker.mjs && next dev",
-    "build": "node scripts/copy-pdf-worker.mjs && next build",
+    "build": "node scripts/copy-pdf-worker.mjs && next build && node scripts/mirror-out.mjs",
     "start": "npx serve out",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
