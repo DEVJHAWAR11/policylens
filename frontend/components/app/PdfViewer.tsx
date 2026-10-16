@@ -4,13 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, FileText, Minus, Plus, RotateCw } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { fetchApi } from '@/lib/api';
+import { matchItems } from '@/lib/highlight';
 
 export interface PdfFocus { page: number; text: string; nonce: number }
 
 interface Rect { x: number; y: number; w: number; h: number }
-
-// Lowercase letters/digits only, so markdown (**, #, |) in chunk text and PDF spacing don't matter.
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
 function loadPdfjs() {
@@ -97,13 +95,12 @@ export default function PdfViewer({ policyId, policyName, focus }: { policyId: s
       if (cancelled) return;
 
       if (focus && focus.page === page && focus.text) {
-        const target = norm(focus.text);
         const content = await p.getTextContent();
+        const items = content.items.filter((it) => 'str' in it);
+        const hits = matchItems(items.map((it) => it.str), focus.text);
         const out: Rect[] = [];
-        for (const item of content.items) {
-          if (!('str' in item)) continue;
-          const s = norm(item.str);
-          if (s.length < 5 || !target.includes(s)) continue;
+        for (const [idx, item] of items.entries()) {
+          if (!hits[idx]) continue;
           const tx = pdfjs.Util.transform(viewport.transform, item.transform);
           const fontH = Math.hypot(tx[2], tx[3]);
           out.push({ x: tx[4], y: tx[5] - fontH, w: item.width * viewport.scale, h: fontH * 1.15 });

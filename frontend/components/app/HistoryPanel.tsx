@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { History, RotateCw, Search } from 'lucide-react';
 import { fetchApi } from '@/lib/api';
+import { stripMarkdown } from '@/lib/markdown';
 import type { HistoryRow, Policy } from '@/lib/types';
 
 // Searchable history across all policies (GET /history?q=).
@@ -53,7 +54,7 @@ export default function HistoryPanel({ policies, onOpen }: { policies: Policy[];
                 <li key={r.id}>
                   <button onClick={() => single && onOpen(r.policy_id)} disabled={!single} className="w-full rounded-xl border border-line p-3 text-left transition-colors hover:border-gold/40 hover:bg-gold/5 disabled:hover:border-line disabled:hover:bg-transparent">
                     <p className="line-clamp-2 text-[13.5px] text-cream">{r.question}</p>
-                    <p className="mt-1 line-clamp-2 text-[12.5px] text-muted">{r.answer}</p>
+                    <p className="mt-1 line-clamp-2 text-[12.5px] text-muted">{stripMarkdown(r.answer)}</p>
                     <p className="mt-1.5 truncate font-mono text-[10.5px] text-gold/80">
                       {single ? names.get(r.policy_id) || 'Deleted policy' : 'Comparison'} · {new Date(r.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                     </p>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowUp, Link2, Scale } from 'lucide-react';
+import Markdown from '@/components/ui/Markdown';
 import { fetchApi } from '@/lib/api';
 import type { Policy, Source } from '@/lib/types';
 
@@ -22,6 +23,7 @@ export default function ComparePanel({ selected, onExit }: { selected: Policy[];
         method: 'POST', body: { question: q, policy_ids: selected.map((p) => p.id) }, timeout: 90_000, retry: 1,
       });
       setAnswer({ q, text: data.answer, sources: data.sources || [] });
+      setQuestion('');
     } catch (err) {
       setError((err as Error).message || 'Something went wrong. Please try again.');
     } finally {
@@ -49,7 +51,7 @@ export default function ComparePanel({ selected, onExit }: { selected: Policy[];
         {answer && (
           <div className="mt-6">
             <p className="text-[13px] text-muted">Q · {answer.q}</p>
-            <div className="mt-2 whitespace-pre-wrap rounded-2xl border border-line bg-black/25 p-4 text-[14px] leading-relaxed text-cream/90">{answer.text}</div>
+            <div className="mt-2 rounded-2xl border border-line bg-black/25 p-4 text-[14px] leading-relaxed text-cream/90"><Markdown text={answer.text} /></div>
             {answer.sources.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {answer.sources.map((s, i) => (

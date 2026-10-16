@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowUp, Link2, MessageSquareText, Square } from 'lucide-react';
+import Markdown from '@/components/ui/Markdown';
 import type { ChatMessage, Policy, Source } from '@/lib/types';
 
 // Generic starters, shown before the first question (not generated from the policy).
@@ -111,7 +112,10 @@ export default function ChatPanel({
                     {m.streaming && !m.text ? (
                       <div className="space-y-2 py-1" aria-label="Thinking"><div className="h-2.5 rounded shimmer" /><div className="h-2.5 w-4/5 rounded shimmer" /><div className="h-2.5 w-3/5 rounded shimmer" /></div>
                     ) : (
-                      <p className="whitespace-pre-wrap">{m.text}{m.streaming && <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-gold" aria-hidden />}</p>
+                      <>
+                        {m.error ? <p className="whitespace-pre-wrap">{m.text}</p> : <Markdown text={m.text} />}
+                        {m.streaming && <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-gold" aria-hidden />}
+                      </>
                     )}
                     <SourceChips m={m} onCite={onCite} />
                   </div>
