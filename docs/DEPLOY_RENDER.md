@@ -14,11 +14,11 @@ URLs: `https://policylens-devj-{api,rag,web}.onrender.com`. Supabase stays as th
 
 1. **Supabase migrations** `001`–`008` applied, and a **private** `policy-pdfs` bucket.
 2. API keys: Groq, Jina (used for embeddings *and* reranking), Supabase service-role key, and the public anon key.
-3. A Render account connected to GitHub, with the Render GitHub app allowed on your fork.
+3. A Render account connected to GitHub, with the Render GitHub app allowed on this repo.
 
 ## 1. Create everything
 
-Render dashboard → **New → Blueprint** → choose your fork and the branch `feat/scalable-architecture`.
+Render dashboard → **New → Blueprint** → choose this repo and the branch `feat/scalable-architecture`.
 Render reads `render.yaml` and lists the three services. Everything is preset except these secrets:
 
 | Variable | Service | Value |
